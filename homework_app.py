@@ -324,71 +324,75 @@ with tabs[1]:
                 st.warning(f"締切が3日以内の宿題が **{len(upcoming)} 件** あります。")
                 st.table(upcoming[["subject","content","due_dt","status","submit_method"]])
 
-            # フラグ初期化
-            if "delete_id" not in st.session_state: st.session_state.delete_id = None
-            if "done_id" not in st.session_state: st.session_state.done_id = None
-            if "update_status" not in st.session_state: st.session_state.update_status = None
-
             # -----------------------------
-            # ループ内でのフラグ設定のみ
+            # フラグ初期化（ループ外）
+            # -----------------------------
+            for flag in ["new_hw_added", "delete_id", "done_id", "update_status"]:
+                if flag not in st.session_state:
+                    st.session_state[flag] = False if "new_hw_added" in flag else None
+            
+            # -----------------------------
+            # 宿題追加ボタン
+            # -----------------------------
+            if st.button("宿題を追加"):
+                use_subject = new_subject.strip() if new_subject.strip() else subject
+                if use_subject not in st.session_state.subjects:
+                    st.session_state.subjects.append(use_subject)
+                    st.session_state.subjects.sort()
+                    drive_save_json(SUBJECT_FILE, st.session_state.subjects)
+            
+                hw = {
+                    "id": int(datetime.now().timestamp()*1000),
+                    "subject": use_subject,
+                    "content": content.strip(),
+                    "due": due.isoformat(),
+                    "status": status,
+                    "submit_method": submit_method,
+                    "submit_method_detail": submit_method_detail,
+                    "created_at": datetime.now().isoformat()
+                }
+                st.session_state.homework.append(hw)
+                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+                st.success("宿題を追加しました。")
+                st.session_state.new_hw_added = True  # フラグで rerun 指示
+            
+            # -----------------------------
+            # 宿題一覧ループ内（削除・完了・ステータス変更）
             # -----------------------------
             for idx, row in df.reset_index(drop=True).iterrows():
-                cols = st.columns([3,3,2,2,2])
-                
-                # 情報表示
-                with cols[0]:
-                    st.markdown(f"**{row['subject']}**")
-                    st.write(row['content'])
-                    st.write(f"提出日: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
-                    st.write(f"追加: {pd.to_datetime(row['created_at']).strftime('%Y-%m-%d %H:%M')}")
-
-                with cols[1]:
-                    st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
-
-                # ステータス
-                with cols[2]:
-                    key_status = f"status_{int(row['id'])}_{idx}"  # 行番号でユニーク化
-                    if key_status not in st.session_state:
-                        st.session_state[key_status] = row["status"]
-                    new_status = st.selectbox(
-                        "",
-                        options=["未着手","作業中","完了"],
-                        index=["未着手","作業中","完了"].index(st.session_state[key_status]),
-                        key=key_status
-                    )
-                    if new_status != row["status"]:
-                        st.session_state.update_status = {"id": row["id"], "status": new_status}
-
-                # 完了ボタン
-                with cols[3]:
-                    if st.button("完了にする", key=f"done_{int(row['id'])}_{idx}"):
-                        st.session_state.done_id = row["id"]
-
+                # ...（表示部分は省略）...
+            
                 # 削除ボタン
-                with cols[4]:
-                    if st.button("削除", key=f"del_{int(row['id'])}_{idx}"):
-                        st.session_state.delete_id = row["id"]
-
+                if st.button("削除", key=f"del_{int(row['id'])}_{idx}"):
+                    st.session_state.delete_id = row["id"]
+            
+                # 完了ボタン
+                if st.button("完了にする", key=f"done_{int(row['id'])}_{idx}"):
+                    st.session_state.done_id = row["id"]
+            
+                # ステータス変更
+                if new_status != row["status"]:
+                    st.session_state.update_status = {"id": row["id"], "status": new_status}
+            
             # -----------------------------
             # ループ外でまとめて処理
             # -----------------------------
             rerun_needed = False
-
-            # 新規宿題追加後に rerun
+            
+            # 新規追加
             if st.session_state.get("new_hw_added"):
                 st.session_state.new_hw_added = False
-                st.experimental_rerun()
-
+                rerun_needed = True
             
-            # 削除処理
+            # 削除
             if st.session_state.get("delete_id") is not None:
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("削除しました。")
                 st.session_state.delete_id = None
                 rerun_needed = True
-
-            # 完了処理
+            
+            # 完了
             if st.session_state.get("done_id") is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.done_id:
@@ -397,8 +401,8 @@ with tabs[1]:
                 st.success("完了にしました。")
                 st.session_state.done_id = None
                 rerun_needed = True
-
-            # ステータス更新処理
+            
+            # ステータス変更
             if st.session_state.get("update_status") is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.update_status["id"]:
@@ -407,12 +411,15 @@ with tabs[1]:
                 st.success("ステータスを更新しました。")
                 st.session_state.update_status = None
                 rerun_needed = True
-
+            
+            # 最終 rerun
             if rerun_needed:
                 st.experimental_rerun()
 
+
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
