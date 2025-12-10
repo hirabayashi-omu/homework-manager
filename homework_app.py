@@ -30,16 +30,13 @@ def get_drive_service_cached(creds):
 
 def get_drive_service():
     creds = None
-    # 保存済みトークンがある場合
     if os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
-    # トークンがないか無効なら認証
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # Flow 作成
             flow = Flow.from_client_config(
                 CLIENT_CONFIG,
                 scopes=SCOPES,
@@ -47,7 +44,14 @@ def get_drive_service():
             )
             auth_url, _ = flow.authorization_url(prompt="consent")
             st.markdown(f"[ここをクリックして Google にログイン]({auth_url})", unsafe_allow_html=True)
-            st.stop()  # 認証後に再読み込みされる
+            code = st.text_input("認証コードを入力してください")
+            if not code:
+                st.stop()
+            flow.fetch_token(code=code)
+            creds = flow.credentials
+            os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
+            with open(TOKEN_FILE, "w", encoding="utf-8") as f:
+                f.write(creds.to_json())
 
     return get_drive_service_cached(creds)
 
@@ -280,6 +284,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
