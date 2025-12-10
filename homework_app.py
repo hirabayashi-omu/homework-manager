@@ -1,11 +1,12 @@
 import streamlit as st
 import json, io, os
-from datetime import date
+from datetime import date, datetime
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+import pandas as pd
 
 # -----------------------------
 # 設定
@@ -16,7 +17,6 @@ HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
-
 TOKEN_FILE = ".streamlit/token.json"
 
 # -----------------------------
@@ -26,15 +26,14 @@ TOKEN_FILE = ".streamlit/token.json"
 def get_drive_service():
     creds = None
 
-    # トークンが存在すれば読み込む
     if os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
-    # トークンがない、または期限切れなら OAuth フロー
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
+            # GitHub Secret からクライアント情報を取得
             client_config = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
             flow = Flow.from_client_config(
                 client_config,
@@ -56,11 +55,10 @@ def get_drive_service():
             with open(TOKEN_FILE, "w", encoding="utf-8") as f:
                 f.write(creds.to_json())
 
-    service = build("drive", "v3", credentials=creds)
-    return service
+    return build("drive", "v3", credentials=creds)
 
 # -----------------------------
-# Drive 操作関数
+# Drive 操作関数（既存コードと同じ）
 # -----------------------------
 def drive_find_file(filename, folder_id=FOLDER_ID):
     service = get_drive_service()
@@ -290,6 +288,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
