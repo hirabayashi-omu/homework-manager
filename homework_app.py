@@ -43,8 +43,9 @@ def get_drive_service():
             flow = Flow.from_client_config(
                 client_config,
                 scopes=SCOPES,
-                redirect_uri=f"{APP_URL}/.auth/callback"
+                redirect_uri="https://homework-manager-jdk5mdhfcjnz2hsywilq5q.streamlit.app/.auth/callback"
             )
+
             auth_url, _ = flow.authorization_url(prompt="consent")
             st.info(f"まずこの URL にアクセスして認証してください:\n{auth_url}")
 
@@ -293,6 +294,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
