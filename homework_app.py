@@ -163,10 +163,9 @@ with tabs[0]:
             for i, c in enumerate(cols):
                 key = f"tt_{d}_{i}"
                 if key not in st.session_state:
-                    # 初回描画時の初期値
-                    st.session_state[key] = st.session_state.timetable.get(d, [""]*4)[i]
-                st.text_input(f"{period_labels[i]}", key=key)
-
+                    st.session_state[key] = st.session_state.timetable[d][i]
+                # ← 修正：返り値を再代入しない
+                st.text_input(period_labels[i], value=st.session_state[key], key=key)
 
 
 # =============================
