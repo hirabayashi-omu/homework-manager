@@ -322,6 +322,12 @@ with tabs[1]:
                 st.warning(f"締切が3日以内の宿題が **{len(upcoming)} 件** あります。")
                 st.table(upcoming[["subject","content","due_dt","status","submit_method"]])
 
+            # -----------------------------
+            # 削除フラグ初期化
+            # -----------------------------
+            if "delete_id" not in st.session_state:
+                st.session_state.delete_id = None
+            
             # 行ごとの操作
             for _, row in df.reset_index(drop=True).iterrows():
                 st.markdown("---")
@@ -359,7 +365,16 @@ with tabs[1]:
                                 break
                 with cols[4]:
                     if st.button(f"削除_{int(row['id'])}", key=f"del_{int(row['id'])}"):
-                        delete_homework(row["id"])
+                        st.session_state.delete_id = row["id"]
+
+# ループ外で削除処理
+if st.session_state.delete_id is not None:
+    st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
+    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+    st.success("削除しました。")
+    st.session_state.delete_id = None
+    st.experimental_rerun()
+
 
 
             # CSV ダウンロード
@@ -373,4 +388,5 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
