@@ -19,18 +19,19 @@ SUBJECT_FILE = "subjects.json"
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 TOKEN_FILE = ".streamlit/token.json"
 
+# Streamlit Cloud 上のリダイレクト URI
+APP_URL = st.secrets.get("APP_URL")  # 例: https://your-app-name.streamlit.app
+
 # -----------------------------
-# Google Drive サービス取得（キャッシュ付き）
+# Google Drive サービス取得
 # -----------------------------
 @st.cache_resource
 def get_drive_service_cached(creds):
-    """認証済み credentials から Drive service を返す"""
     service = build("drive", "v3", credentials=creds)
     return service
 
 def get_drive_service():
     creds = None
-
     if os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
@@ -42,16 +43,15 @@ def get_drive_service():
             flow = Flow.from_client_config(
                 client_config,
                 scopes=SCOPES,
-                redirect_uri="https://YOUR-STREAMLIT-APP-URL/.auth/callback"
+                redirect_uri=f"{APP_URL}/.auth/callback"
             )
             auth_url, _ = flow.authorization_url(prompt="consent")
             st.info(f"まずこの URL にアクセスして認証してください:\n{auth_url}")
-            
-            # 認証コード入力はキャッシュ外で呼ぶ
-            code = st.text_input("認証後に表示されるコードを入力してください")
+
+            code = st.text_input("認証コードを入力してください", key="auth_code")
             if not code:
                 st.stop()
-            
+
             flow.fetch_token(code=code)
             creds = flow.credentials
 
@@ -62,7 +62,7 @@ def get_drive_service():
     return get_drive_service_cached(creds)
 
 # -----------------------------
-# Drive 操作関数（既存コードと同じ）
+# Drive 操作関数
 # -----------------------------
 def drive_find_file(filename, folder_id=FOLDER_ID):
     service = get_drive_service()
@@ -127,6 +127,7 @@ def init_session_state():
 
 init_session_state()
 st.write("✅ セッション初期化完了")
+
 
 
 
@@ -292,6 +293,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
