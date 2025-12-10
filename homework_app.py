@@ -1,96 +1,74 @@
 import streamlit as st
-import json, io
+import io, json
 from datetime import date, datetime
 import pandas as pd
-
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
-from google_auth_oauthlib.flow import Flow
-from google.oauth2.credentials import Credentials
 
 # -----------------------------
 # Google Drive 設定
 # -----------------------------
+FOLDER_ID = "マイドライブ/フォルダID"  # 共有フォルダIDも可
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
 
+SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+
 # -----------------------------
 # OAuth 認証
 # -----------------------------
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]  # マイドライブのファイルのみアクセス
-
 @st.cache_resource
 def get_drive_service():
-    if "creds" not in st.session_state:
-        st.session_state.creds = None
-
-    if st.session_state.creds is None:
-        st.info("最初に Google 認証を行ってください")
-        auth_url = get_auth_url()
-        st.markdown(f"[ここをクリックして認証]({auth_url})")
-        return None
-    else:
-        creds = Credentials(**st.session_state.creds)
-        service = build("drive", "v3", credentials=creds)
-        return service
-
-def get_auth_url():
-    flow = Flow.from_client_secrets_file(
-        "client_secret.json",  # OAuth クライアントID/シークレットをダウンロードして配置
+    # client_secret.json の内容を st.secrets から取得
+    client_config = st.secrets["client_secret"]  # JSON を文字列で保存
+    flow = Flow.from_client_config(
+        client_config,
         scopes=SCOPES,
         redirect_uri="urn:ietf:wg:oauth:2.0:oob"
     )
     auth_url, _ = flow.authorization_url(prompt="consent")
-    st.session_state.flow = flow
-    return auth_url
-
-def set_auth_code(code):
-    flow = st.session_state.flow
-    creds = flow.fetch_token(code=code)
-    st.session_state.creds = {
-        "token": creds["access_token"],
-        "refresh_token": creds.get("refresh_token"),
-        "token_uri": flow.client_config["token_uri"],
-        "client_id": flow.client_config["client_id"],
-        "client_secret": flow.client_config["client_secret"],
-        "scopes": SCOPES
-    }
-    st.success("認証完了！アプリを再読み込みしてください")
+    
+    code = st.text_input("下記 URL を開き、認証コードを入力してください：\n" + auth_url, "")
+    if code:
+        flow.fetch_token(code=code)
+        creds = flow.credentials
+        service = build("drive", "v3", credentials=creds)
+        return service
+    else:
+        st.stop()
 
 # -----------------------------
-# Drive 操作
+# Drive 操作関数
 # -----------------------------
-def drive_find_file(filename):
+def drive_find_file(filename, folder_id=FOLDER_ID):
     service = get_drive_service()
-    if service is None:
-        return None
+    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
     results = service.files().list(
-        q=f"name='{filename}' and trashed=false",
-        spaces="drive",
+        q=query,
         fields="files(id, name)"
     ).execute()
     files = results.get("files", [])
     return files[0]["id"] if files else None
 
-def drive_save_json(filename, data):
-    service = get_drive_service()
-    if service is None:
-        return
-    file_id = drive_find_file(filename)
-    content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-    media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
-    if file_id:
-        service.files().update(fileId=file_id, media_body=media).execute()
-    else:
-        body = {"name": filename}
-        service.files().create(body=body, media_body=media).execute()
+def drive_save_json(filename, data, folder_id=FOLDER_ID):
+    try:
+        file_id = drive_find_file(filename, folder_id)
+        content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+        media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
+        service = get_drive_service()
+        if file_id:
+            service.files().update(fileId=file_id, media_body=media).execute()
+        else:
+            body = {"name": filename, "parents": [folder_id]}
+            service.files().create(body=body, media_body=media).execute()
+    except Exception as e:
+        st.warning(f"[Drive] 保存時の警告: {e}")
 
-def drive_load_json(filename, default):
+def drive_load_json(filename, default, folder_id=FOLDER_ID):
     service = get_drive_service()
-    if service is None:
-        return default
-    file_id = drive_find_file(filename)
+    file_id = drive_find_file(filename, folder_id)
     if not file_id:
         return default
     request = service.files().get_media(fileId=file_id)
@@ -102,7 +80,7 @@ def drive_load_json(filename, default):
     fh.seek(0)
     try:
         return json.loads(fh.read().decode("utf-8"))
-    except Exception:
+    except:
         return default
 
 # -----------------------------
@@ -316,6 +294,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
