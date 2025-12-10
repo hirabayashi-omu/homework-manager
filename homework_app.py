@@ -240,7 +240,11 @@ with tabs[1]:
         st.subheader("宿題の登録")
         subject = st.selectbox("科目", options=st.session_state.subjects, index=0 if st.session_state.subjects else None)
         new_subject = st.text_input("（新しい科目を追加する場合）", value="")
-        content = st.text_area("宿題内容", placeholder="例: レポート 3ページ、問題集 p10-15")
+        content = st.text_area(
+            "宿題内容",
+            placeholder="例: レポート 3ページ、問題集 p10-15",
+            height=100  # 高さを倍に
+        )
         due = st.date_input("提出日", value=date.today())
         status = st.selectbox("ステータス", options=["未着手","作業中","完了"], index=0)
         st.markdown("提出方法")
@@ -358,6 +362,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
