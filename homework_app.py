@@ -280,13 +280,10 @@ with right:
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.experimental_rerun()
-                    )
-
-
-
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
