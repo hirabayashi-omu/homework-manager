@@ -1,5 +1,5 @@
 import streamlit as st
-import io, json
+import json, io
 from datetime import date, datetime
 import pandas as pd
 from google_auth_oauthlib.flow import Flow
@@ -9,35 +9,44 @@ from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 # -----------------------------
 # Google Drive 設定
 # -----------------------------
-FOLDER_ID = "マイドライブ/フォルダID"  # 共有フォルダIDも可
+FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
 
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 # -----------------------------
 # OAuth 認証
 # -----------------------------
 @st.cache_resource
 def get_drive_service():
-    # client_secret.json の内容を st.secrets から取得
-    client_config = st.secrets["client_secret"]  # JSON を文字列で保存
+    # GitHub Secrets から OAuth 情報を読み込み
+    client_config = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+
+    # OAuth フロー生成
     flow = Flow.from_client_config(
         client_config,
         scopes=SCOPES,
         redirect_uri="urn:ietf:wg:oauth:2.0:oob"
     )
+
+    # 認証 URL を生成
     auth_url, _ = flow.authorization_url(prompt="consent")
-    
-    code = st.text_input("下記 URL を開き、認証コードを入力してください：\n" + auth_url, "")
-    if code:
-        flow.fetch_token(code=code)
-        creds = flow.credentials
-        service = build("drive", "v3", credentials=creds)
-        return service
-    else:
+    st.info(f"まずこの URL にアクセスして認証コードを取得してください:\n{auth_url}")
+
+    # ユーザー入力による認証コード取得
+    code = st.text_input("認証コードを入力してください")
+    if not code:
         st.stop()
+
+    # 認証コードからトークンを取得
+    flow.fetch_token(code=code)
+    creds = flow.credentials
+
+    # Drive API サービス生成
+    service = build("drive", "v3", credentials=creds)
+    return service
 
 # -----------------------------
 # Drive 操作関数
@@ -47,49 +56,49 @@ def drive_find_file(filename, folder_id=FOLDER_ID):
     query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
     results = service.files().list(
         q=query,
-        fields="files(id, name)"
+        spaces="drive",
+        fields="files(id, name)",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
     ).execute()
     files = results.get("files", [])
     return files[0]["id"] if files else None
 
 def drive_save_json(filename, data, folder_id=FOLDER_ID):
-    try:
-        file_id = drive_find_file(filename, folder_id)
-        content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-        media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
-        service = get_drive_service()
-        if file_id:
-            service.files().update(fileId=file_id, media_body=media).execute()
-        else:
-            body = {"name": filename, "parents": [folder_id]}
-            service.files().create(body=body, media_body=media).execute()
-    except Exception as e:
-        st.warning(f"[Drive] 保存時の警告: {e}")
+    service = get_drive_service()
+    content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+    media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
+    file_id = drive_find_file(filename, folder_id)
+    if file_id:
+        service.files().update(
+            fileId=file_id,
+            media_body=media,
+            supportsAllDrives=True
+        ).execute()
+    else:
+        body = {"name": filename, "parents": [folder_id]}
+        service.files().create(
+            body=body,
+            media_body=media,
+            supportsAllDrives=True
+        ).execute()
 
 def drive_load_json(filename, default, folder_id=FOLDER_ID):
     service = get_drive_service()
     file_id = drive_find_file(filename, folder_id)
     if not file_id:
         return default
-    request = service.files().get_media(fileId=file_id)
+    request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
     while not done:
-        status, done = downloader.next_chunk()
+        _, done = downloader.next_chunk()
     fh.seek(0)
     try:
         return json.loads(fh.read().decode("utf-8"))
-    except:
+    except Exception:
         return default
-
-# -----------------------------
-# 認証コード入力用
-# -----------------------------
-if st.session_state.get("creds") is None:
-    code = st.text_input("認証コードを入力してください")
-    if code:
-        set_auth_code(code)
 
 # -----------------------------
 # session_state 初期化
@@ -97,40 +106,15 @@ if st.session_state.get("creds") is None:
 def init_session_state():
     if "timetable" not in st.session_state:
         default_tt = {"月":["","","",""], "火":["","","",""], "水":["","","",""], "木":["","","",""], "金":["","","",""]}
-        loaded_tt = drive_load_json(TIMETABLE_FILE, default_tt)
-        for d in loaded_tt:
-            if not isinstance(loaded_tt[d], list) or len(loaded_tt[d]) != 4:
-                loaded_tt[d] = [""]*4
-        st.session_state.timetable = loaded_tt
-
+        st.session_state.timetable = drive_load_json(TIMETABLE_FILE, default_tt)
     if "homework" not in st.session_state:
-        loaded_hw = drive_load_json(HOMEWORK_FILE, [])
-        if isinstance(loaded_hw, list):
-            for h in loaded_hw:
-                if "due" not in h or not h["due"]:
-                    h["due"] = date.today().isoformat()
-                if "created_at" not in h:
-                    h["created_at"] = datetime.now().isoformat()
-            st.session_state.homework = loaded_hw
-        else:
-            st.session_state.homework = []
-
+        st.session_state.homework = drive_load_json(HOMEWORK_FILE, [])
     if "subjects" not in st.session_state:
-        loaded_subs = drive_load_json(SUBJECT_FILE, [])
-        if isinstance(loaded_subs, list) and loaded_subs:
-            st.session_state.subjects = loaded_subs
-        else:
-            subs = set()
-            for vals in st.session_state.timetable.values():
-                for s in vals:
-                    if isinstance(s,str) and s.strip():
-                        subs.add(s.strip())
-            for c in ["数学","物理","化学","英語","日本史","情報","機械設計"]:
-                subs.add(c)
-            st.session_state.subjects = sorted(list(subs))
-            drive_save_json(SUBJECT_FILE, st.session_state.subjects)
+        st.session_state.subjects = drive_load_json(SUBJECT_FILE, [])
 
 init_session_state()
+st.write("✅ セッション初期化完了")
+
 
 # -----------------------------
 # Streamlit 設定
@@ -294,6 +278,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
