@@ -169,24 +169,34 @@ with tabs[0]:
     df_preview = pd.DataFrame({d: st.session_state.timetable[d] for d in days}, index=period_labels)
     st.dataframe(df_preview, use_container_width=True)
 
-    st.markdown("### 保存済み時間割を読み込む（JSON）")
-    
     uploaded_file = st.file_uploader(
         "ここに JSON ファイルをドラッグ＆ドロップ",
         type=["json"]
     )
     
+    days = ["月","火","水","木","金"]
+    period_labels = ["1/2限","3/4限","5/6限","7/8限"]
+    
+    # ファイル読み込み
     if uploaded_file is not None:
         try:
             loaded_tt = json.load(uploaded_file)
-            days = ["月","火","水","木","金"]
-            for d in days:
-                for i in range(4):
-                    st.session_state[f"tt_{d}_{i}"] = loaded_tt.get(d, [""]*4)[i]
             st.session_state.timetable = loaded_tt
             st.success("時間割を読み込みました！")
         except Exception as e:
             st.error(f"JSON 読み込みエラー: {e}")
+
+    # 各テキスト入力は session_state から値を取得して描画
+    for d in days:
+        with st.expander(f"{d}曜日"):
+            cols = st.columns(4)
+            for i, c in enumerate(cols):
+                key = f"tt_{d}_{i}"
+                if key not in st.session_state:
+                    # 初回描画時の初期値
+                    st.session_state[key] = st.session_state.timetable.get(d, [""]*4)[i]
+                st.text_input(f"{period_labels[i]}", key=key)
+
 
 
 # =============================
@@ -345,6 +355,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
