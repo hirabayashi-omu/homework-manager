@@ -348,7 +348,7 @@ with tabs[1]:
             
                 # 4列目: 完了ボタン
                 with cols[3]:
-                    if st.button(f"完了にする", key=f"done_{int(row['id'])}"):
+                    if st.button("完了にする", key=f"done_{int(row['id'])}"):
                         st.session_state.done_id = row["id"]
             
                 # 5列目: 削除ボタン
@@ -408,6 +408,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
