@@ -92,44 +92,6 @@ def delete_homework(hw_id):
     st.success("削除しました。")
     st.experimental_rerun()  # 再描画して一覧を更新
 
-# 行ごとの操作
-for _, row in df.reset_index(drop=True).iterrows():
-    st.markdown("---")
-    cols = st.columns([3,3,2,2,2])
-    
-    with cols[0]:
-        st.markdown(f"**{row['subject']}** — {row['content']}")
-        st.write(f"提出: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
-    with cols[1]:
-        st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
-        st.write(f"追加: {pd.to_datetime(row['created_at']).strftime('%Y-%m-%d %H:%M')}")
-    with cols[2]:
-        key_status = f"status_{int(row['id'])}"
-        if key_status not in st.session_state:
-            st.session_state[key_status] = row["status"]
-        new_status = st.selectbox("", options=["未着手","作業中","完了"],
-                                  index=["未着手","作業中","完了"].index(st.session_state[key_status]),
-                                  key=key_status)
-        if new_status != row["status"]:
-            for h in st.session_state.homework:
-                if h["id"] == row["id"]:
-                    h["status"] = new_status
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.success("ステータスを更新しました。")
-                    st.experimental_rerun()
-                    break
-    with cols[3]:
-        if st.button(f"完了にする_{int(row['id'])}", key=f"done_{int(row['id'])}"):
-            for h in st.session_state.homework:
-                if h["id"] == row["id"]:
-                    h["status"] = "完了"
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.success("完了にしました。")
-                    st.experimental_rerun()
-                    break
-    with cols[4]:
-        if st.button(f"削除_{int(row['id'])}", key=f"del_{int(row['id'])}"):
-            delete_homework(row["id"])
 
 
 # -----------------------------
@@ -364,6 +326,7 @@ with tabs[1]:
             for _, row in df.reset_index(drop=True).iterrows():
                 st.markdown("---")
                 cols = st.columns([3,3,2,2,2])
+                
                 with cols[0]:
                     st.markdown(f"**{row['subject']}** — {row['content']}")
                     st.write(f"提出: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
@@ -383,6 +346,7 @@ with tabs[1]:
                                 h["status"] = new_status
                                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                                 st.success("ステータスを更新しました。")
+                                st.experimental_rerun()
                                 break
                 with cols[3]:
                     if st.button(f"完了にする_{int(row['id'])}", key=f"done_{int(row['id'])}"):
@@ -391,12 +355,12 @@ with tabs[1]:
                                 h["status"] = "完了"
                                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                                 st.success("完了にしました。")
+                                st.experimental_rerun()
                                 break
                 with cols[4]:
                     if st.button(f"削除_{int(row['id'])}", key=f"del_{int(row['id'])}"):
-                        st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
-                        drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                        st.success("削除しました。")
+                        delete_homework(row["id"])
+
 
             # CSV ダウンロード
             st.markdown("---")
@@ -409,3 +373,4 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
