@@ -1,13 +1,14 @@
 import streamlit as st
-import json, io
-from datetime import date, datetime
-import pandas as pd
+import json, io, os
+from datetime import date
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 
 # -----------------------------
-# Google Drive 設定
+# 設定
 # -----------------------------
 FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"
 TIMETABLE_FILE = "timetable.json"
@@ -16,35 +17,45 @@ SUBJECT_FILE = "subjects.json"
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
+TOKEN_FILE = ".streamlit/token.json"
+
 # -----------------------------
-# OAuth 認証
+# Google Drive サービス取得（キャッシュ付き）
 # -----------------------------
 @st.cache_resource
 def get_drive_service():
-    # GitHub Secrets から OAuth 情報を読み込み
-    client_config = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+    creds = None
 
-    # OAuth フロー生成
-    flow = Flow.from_client_config(
-        client_config,
-        scopes=SCOPES,
-        redirect_uri="urn:ietf:wg:oauth:2.0:oob"
-    )
+    # トークンが存在すれば読み込む
+    if os.path.exists(TOKEN_FILE):
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
-    # 認証 URL を生成
-    auth_url, _ = flow.authorization_url(prompt="consent")
-    st.info(f"まずこの URL にアクセスして認証コードを取得してください:\n{auth_url}")
+    # トークンがない、または期限切れなら OAuth フロー
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            client_config = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+            flow = Flow.from_client_config(
+                client_config,
+                scopes=SCOPES,
+                redirect_uri="urn:ietf:wg:oauth:2.0:oob"
+            )
+            auth_url, _ = flow.authorization_url(prompt="consent")
+            st.info(f"まずこの URL にアクセスして認証コードを取得してください:\n{auth_url}")
 
-    # ユーザー入力による認証コード取得
-    code = st.text_input("認証コードを入力してください")
-    if not code:
-        st.stop()
+            code = st.text_input("認証コードを入力してください")
+            if not code:
+                st.stop()
 
-    # 認証コードからトークンを取得
-    flow.fetch_token(code=code)
-    creds = flow.credentials
+            flow.fetch_token(code=code)
+            creds = flow.credentials
 
-    # Drive API サービス生成
+            # トークンを保存
+            os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
+            with open(TOKEN_FILE, "w", encoding="utf-8") as f:
+                f.write(creds.to_json())
+
     service = build("drive", "v3", credentials=creds)
     return service
 
@@ -114,6 +125,7 @@ def init_session_state():
 
 init_session_state()
 st.write("✅ セッション初期化完了")
+
 
 
 # -----------------------------
@@ -278,6 +290,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
