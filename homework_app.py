@@ -246,13 +246,13 @@ with right:
         def highlight_due(row):
             return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
         
-        # 表示用データ
+        # 表示用データ（days_left は条件付きハイライト用に残す）
         display_df = df[["subject","content","due_dt","status","submit_method","days_left"]].copy()
-        st.dataframe(
-            display_df.style.apply(highlight_due, axis=1).hide_columns(['days_left']),
-            use_container_width=True
-        )
         
+        # スタイル適用後に表示列だけ選択
+        styled = display_df.style.apply(highlight_due, axis=1)
+        st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
+                
 
         st.markdown(f"登録件数: **{len(df)} 件**")
         upcoming = df[df["days_left"] <= 3]
@@ -320,6 +320,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
