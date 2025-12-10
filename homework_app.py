@@ -84,18 +84,31 @@ def init_session_state():
             if not isinstance(loaded_tt[d], list) or len(loaded_tt[d]) != 4:
                 loaded_tt[d] = [""]*4
         st.session_state.timetable = loaded_tt
-
+    
     if "homework" not in st.session_state:
         loaded_hw = drive_load_json(HOMEWORK_FILE, [])
+        safe_hw = []
         if isinstance(loaded_hw, list):
             for h in loaded_hw:
-                if "due" not in h or not h["due"]:
-                    h["due"] = date.today().isoformat()
-                if "created_at" not in h:
-                    h["created_at"] = datetime.now().isoformat()
-            st.session_state.homework = loaded_hw
-        else:
-            st.session_state.homework = []
+                # h が辞書でなければ初期化
+                if not isinstance(h, dict):
+                    h = {
+                        "id": int(datetime.now().timestamp()*1000),
+                        "subject": "不明",
+                        "content": "（内容未記入）",
+                        "due": date.today().isoformat(),
+                        "status": "未着手",
+                        "submit_method": "不明",
+                        "submit_method_detail": "",
+                        "created_at": datetime.now().isoformat()
+                    }
+                else:
+                    if "due" not in h or not h.get("due"):
+                        h["due"] = date.today().isoformat()
+                    if "created_at" not in h or not h.get("created_at"):
+                        h["created_at"] = datetime.now().isoformat()
+                safe_hw.append(h)
+        st.session_state.homework = safe_hw
 
     if "subjects" not in st.session_state:
         loaded_subs = drive_load_json(SUBJECT_FILE, [])
@@ -306,3 +319,4 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
