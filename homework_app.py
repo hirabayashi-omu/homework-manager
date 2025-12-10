@@ -48,10 +48,24 @@ service = get_drive_service()
 # Drive Utility
 # -----------------------------
 def drive_find_file(filename):
-    query = f"'{FOLDER_ID}' in parents and name='{filename}' and trashed=false"
-    results = service.files().list(q=query, fields="files(id, name)").execute()
+    service = get_drive_service()
+    try:
+        results = service.files().list(
+            q=f"name='{filename}' and trashed=false",
+            spaces="drive",
+            fields="files(id, name)"
+        ).execute()
+    except Exception as e:
+        st.error(f"Drive API error: {e}")
+        return None
+
+    if results is None:
+        return None
+
     files = results.get("files", [])
-    return files[0]["id"] if files else None
+    if not files:
+        return None
+    return files[0]["id"]
 
 def drive_load_json(filename, default):
     file_id = drive_find_file(filename)
@@ -341,3 +355,4 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
