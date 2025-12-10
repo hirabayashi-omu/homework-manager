@@ -218,7 +218,6 @@ with tabs[1]:
             st.session_state.new_hw_added = True
 
 # ---- 右: 一覧表示 ----
-# ---- 右: 一覧表示 ----
 with right:
     hw_list = [h for h in st.session_state.homework if isinstance(h, dict)]
     if hw_list:
@@ -255,42 +254,33 @@ with right:
             st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
             
             st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
+            
+            # コンパクト表示: テーブル＋操作ボタン
+            for idx, row in df_recent.reset_index(drop=True).iterrows():  # df -> df_recent
+                cols = st.columns([3, 1, 1, 1])
+                cols[0].markdown(
+                    f"**{row['subject']}** - {row['content']}<br>"
+                    f"提出日: {row['due_dt']} / 提出方法: {row['submit_method']} {row['submit_method_detail']}",
+                    unsafe_allow_html=True
+                )
+                # ステータス表示
+                new_status = cols[1].selectbox(
+                    "",
+                    ["未着手","作業中","完了"],
+                    index=["未着手","作業中","完了"].index(row["status"]),
+                    key=f"status_{row['id']}"
+                )
+                if new_status != row["status"]:
+                    st.session_state.update_status = {"id": row["id"], "status": new_status}
+
+                # 完了ボタン
+                if cols[2].button("完了", key=f"done_{row['id']}"):
+                    st.session_state.done_id = row["id"]
+
+                # 削除ボタン
+                if cols[3].button("削除", key=f"del_{row['id']}"):
+                    st.session_state.delete_id = row["id"]
         else:
-            st.info("直近の宿題はありません。")
-        
-        if not df_recent.empty:
-            # 表示用データ
-            display_df = df_recent[["subject","content","due_dt","status","submit_method","days_left"]].copy()
-        
-            # スタイル適用
-            styled = display_df.style.apply(highlight_due, axis=1)
-        
-            # days_left は非表示にして表示
-            st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
-        
-
-
-        # コンパクト表示: テーブル＋操作ボタン
-        for idx, row in df.reset_index(drop=True).iterrows():
-            cols = st.columns([3, 1, 1, 1])
-            cols[0].markdown(f"**{row['subject']}** - {row['content']}<br>提出日: {row['due_dt']} / 提出方法: {row['submit_method']} {row['submit_method_detail']}", unsafe_allow_html=True)
-            # ステータス表示
-            new_status = cols[1].selectbox(
-                "",
-                ["未着手","作業中","完了"],
-                index=["未着手","作業中","完了"].index(row["status"]),
-                key=f"status_{row['id']}"
-            )
-            if new_status != row["status"]:
-                st.session_state.update_status = {"id": row["id"], "status": new_status}
-
-            # 完了ボタン
-            if cols[2].button("完了", key=f"done_{row['id']}"):
-                st.session_state.done_id = row["id"]
-
-            # 削除ボタン
-            if cols[3].button("削除", key=f"del_{row['id']}"):
-                st.session_state.delete_id = row["id"]
 
 
 # ---- ループ外でまとめて処理 ----
@@ -331,6 +321,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
