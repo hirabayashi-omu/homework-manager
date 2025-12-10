@@ -169,6 +169,26 @@ with tabs[0]:
     df_preview = pd.DataFrame({d: st.session_state.timetable[d] for d in days}, index=period_labels)
     st.dataframe(df_preview, use_container_width=True)
 
+    st.markdown("### 保存済み時間割を読み込む（JSON）")
+    
+    uploaded_file = st.file_uploader(
+        "ここに JSON ファイルをドラッグ＆ドロップ",
+        type=["json"]
+    )
+    
+    if uploaded_file is not None:
+        try:
+            loaded_tt = json.load(uploaded_file)
+            days = ["月","火","水","木","金"]
+            for d in days:
+                for i in range(4):
+                    st.session_state[f"tt_{d}_{i}"] = loaded_tt.get(d, [""]*4)[i]
+            st.session_state.timetable = loaded_tt
+            st.success("時間割を読み込みました！")
+        except Exception as e:
+            st.error(f"JSON 読み込みエラー: {e}")
+
+
 # =============================
 # タブ2: 宿題管理
 # =============================
@@ -325,6 +345,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
