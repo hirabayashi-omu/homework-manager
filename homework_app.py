@@ -1,11 +1,9 @@
 import streamlit as st
-import json, io, os
+import json, io
 from datetime import date, datetime
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
+from google.oauth2.service_account import Credentials
 import pandas as pd
 
 # -----------------------------
@@ -17,51 +15,22 @@ HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
-TOKEN_FILE = ".streamlit/token.json"
-CLIENT_CONFIG = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
-REDIRECT_URI = "https://homework-manager-jdk5mdhfcjnz2hsywilq5q.streamlit.app/.auth/callback"
 
 # -----------------------------
-# Drive サービス取得
+# Google Drive サービス取得
 # -----------------------------
+@st.cache_resource
 def get_drive_service():
-    creds = None
-    if os.path.exists(TOKEN_FILE):
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            # Flow 作成
-            flow = Flow.from_client_config(
-                CLIENT_CONFIG,
-                scopes=SCOPES,
-                redirect_uri=REDIRECT_URI
-            )
-            auth_url, _ = flow.authorization_url(prompt="consent")
-            st.markdown(
-                "まずこのリンクで Google にログインして認証コードを取得してください:<br>"
-                f"[Google認証へ]({auth_url})",
-                unsafe_allow_html=True
-            )
-            code = st.text_input("認証コードを入力してください")
-            if not code:
-                st.stop()
-            # コードからトークン取得
-            flow.fetch_token(code=code)
-            creds = flow.credentials
-            os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
-            with open(TOKEN_FILE, "w", encoding="utf-8") as f:
-                f.write(creds.to_json())
-            st.success("認証完了！ ページを再読み込みしてください。")
-            st.stop()
-    return build("drive", "v3", credentials=creds)
+    creds = Credentials.from_service_account_info(st.secrets["GOOGLE_CREDENTIALS"], scopes=SCOPES)
+    service = build("drive", "v3", credentials=creds)
+    return service
+
+service = get_drive_service()
 
 # -----------------------------
 # Drive 操作関数
 # -----------------------------
 def drive_find_file(filename, folder_id=FOLDER_ID):
-    service = get_drive_service()
     query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
     results = service.files().list(
         q=query,
@@ -74,26 +43,16 @@ def drive_find_file(filename, folder_id=FOLDER_ID):
     return files[0]["id"] if files else None
 
 def drive_save_json(filename, data, folder_id=FOLDER_ID):
-    service = get_drive_service()
     content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
     media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
     file_id = drive_find_file(filename, folder_id)
     if file_id:
-        service.files().update(
-            fileId=file_id,
-            media_body=media,
-            supportsAllDrives=True
-        ).execute()
+        service.files().update(fileId=file_id, media_body=media, supportsAllDrives=True).execute()
     else:
         body = {"name": filename, "parents": [folder_id]}
-        service.files().create(
-            body=body,
-            media_body=media,
-            supportsAllDrives=True
-        ).execute()
+        service.files().create(body=body, media_body=media, supportsAllDrives=True).execute()
 
 def drive_load_json(filename, default, folder_id=FOLDER_ID):
-    service = get_drive_service()
     file_id = drive_find_file(filename, folder_id)
     if not file_id:
         return default
@@ -114,7 +73,7 @@ def drive_load_json(filename, default, folder_id=FOLDER_ID):
 # -----------------------------
 def init_session_state():
     if "timetable" not in st.session_state:
-        default_tt = {"月":["","","",""], "火":["","","",""], "水":["","","",""], "木":["","","",""], "金":["","","",""]}
+        default_tt = {d:["","","",""] for d in ["月","火","水","木","金"]}
         st.session_state.timetable = drive_load_json(TIMETABLE_FILE, default_tt)
     if "homework" not in st.session_state:
         st.session_state.homework = drive_load_json(HOMEWORK_FILE, [])
@@ -122,7 +81,6 @@ def init_session_state():
         st.session_state.subjects = drive_load_json(SUBJECT_FILE, [])
 
 init_session_state()
-st.write("✅ セッション初期化完了")
 
 # -----------------------------
 # Streamlit 設定
@@ -171,19 +129,6 @@ with tabs[0]:
     df_preview = pd.DataFrame({d: st.session_state.timetable[d] for d in days}, index=period_labels)
     st.dataframe(df_preview, use_container_width=True)
 
-    # JSON アップロード
-    uploaded_file = st.file_uploader("ここに JSON ファイルをドラッグ＆ドロップ", type=["json"])
-    if uploaded_file is not None:
-        try:
-            loaded_tt = json.load(uploaded_file)
-            for d in loaded_tt:
-                if d in st.session_state.timetable:
-                    for i in range(4):
-                        st.session_state.timetable[d][i] = loaded_tt[d][i] if i<len(loaded_tt[d]) else ""
-            st.success("時間割を読み込みました！")
-        except Exception as e:
-            st.error(f"JSON 読み込みエラー: {e}")
-
 # =============================
 # タブ2: 宿題管理
 # =============================
@@ -191,7 +136,7 @@ with tabs[1]:
     st.markdown("<h1 style='color:#ff7f0e; font-size:36px;'>📚 宿題管理</h1>", unsafe_allow_html=True)
     left, right = st.columns([1,2])
 
-    # ---- 左: 登録フォーム ----
+    # 左: 登録フォーム
     with left:
         st.subheader("宿題の登録")
         subject = st.selectbox("科目", options=st.session_state.subjects)
@@ -223,7 +168,7 @@ with tabs[1]:
             drive_save_json(HOMEWORK_FILE, st.session_state.homework)
             st.success("宿題を追加しました。")
 
-    # ---- 右: 一覧表示 ----
+    # 右: 一覧表示
 with right:
     st.subheader("宿題一覧")
     hw_list = st.session_state.homework or []
@@ -256,59 +201,5 @@ with right:
         styled = df_filtered[["subject","content","due_dt","status","submit_method","days_left"]].style.apply(highlight_due, axis=1)
         st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
 
-        # 完了・削除ボタン
-        for idx, row in df_filtered.iterrows():
-            cols = st.columns([3,1,1,1])
-            cols[0].markdown(
-                f"**{row['subject']}** - {row['content']}<br>"
-                f"提出日: {row['due_dt']} / 提出方法: {row['submit_method']} {row.get('submit_method_detail','')}",
-                unsafe_allow_html=True
-            )
-            new_status = cols[1].selectbox(
-                "", ["未着手","作業中","完了"], index=["未着手","作業中","完了"].index(row["status"]), key=f"status_{row['id']}"
-            )
-            if new_status != row["status"]:
-                for h in st.session_state.homework:
-                    if h["id"] == row["id"]:
-                        h["status"] = new_status
-                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                # st.experimental_rerun() は削除
-
-            if cols[2].button("完了", key=f"done_{row['id']}"):
-                for h in st.session_state.homework:
-                    if h["id"] == row["id"]:
-                        h["status"] = "完了"
-                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-
-            if cols[3].button("削除", key=f"del_{row['id']}"):
-                st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
-                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
