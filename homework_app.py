@@ -230,40 +230,7 @@ with tabs[1]:
             drive_save_json(HOMEWORK_FILE, st.session_state.homework)
             st.success("宿題を追加しました。")
 
-    # ---- 右: 一覧表示 ----
-    with right:
-        hw_list = st.session_state.homework
-        if hw_list:
-            df = pd.DataFrame(hw_list)
-            df["due_dt"] = pd.to_datetime(df["due"]).dt.date
-            df["created_at_dt"] = pd.to_datetime(df["created_at"])
-            today_dt = date.today()
-            df["days_left"] = (df["due_dt"] - today_dt).apply(lambda x: x.days)
-            df = df.sort_values(["due_dt","created_at_dt"], ascending=[True, False])
 
-            # --- フィルター ---
-            filter_status = st.selectbox("ステータスで絞り込む", ["全て","未着手","作業中","完了"], index=0)
-            keyword = st.text_input("キーワード検索（科目・内容）", value="")
-            df_filtered = df.copy()
-            if filter_status != "全て":
-                df_filtered = df_filtered[df_filtered["status"]==filter_status]
-            if keyword.strip():
-                df_filtered = df_filtered[
-                    df_filtered["subject"].str.contains(keyword, case=False, na=False) |
-                    df_filtered["content"].str.contains(keyword, case=False, na=False)
-
-
-            # --- 直近3日以内ハイライト ---
-            df_recent = df_filtered[df_filtered["days_left"]<=3]
-            if not df_recent.empty:
-                st.markdown(f"登録件数: **{len(df_recent)} 件**")
-                def highlight_due(row):
-                    return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
-                styled = df_recent[["subject","content","due_dt","status","submit_method","days_left"]].style.apply(highlight_due, axis=1)
-                st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
-                st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
-            else:
-                st.info("直近の宿題はありません。")
 with right:
     hw_list = st.session_state.homework
     if hw_list:
@@ -331,6 +298,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
