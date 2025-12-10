@@ -39,15 +39,19 @@ def get_drive_service():
             creds.refresh(Request())
         else:
             client_config = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
-            flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri="urn:ietf:wg:oauth:2.0:oob")
+            flow = Flow.from_client_config(
+                client_config,
+                scopes=SCOPES,
+                redirect_uri="https://YOUR-STREAMLIT-APP-URL/.auth/callback"
+            )
             auth_url, _ = flow.authorization_url(prompt="consent")
-            st.info(f"まずこの URL にアクセスして認証コードを取得してください:\n{auth_url}")
-
-            # ウィジェットはキャッシュ外で呼ぶ
-            code = st.text_input("認証コードを入力してください")
+            st.info(f"まずこの URL にアクセスして認証してください:\n{auth_url}")
+            
+            # 認証コード入力はキャッシュ外で呼ぶ
+            code = st.text_input("認証後に表示されるコードを入力してください")
             if not code:
                 st.stop()
-
+            
             flow.fetch_token(code=code)
             creds = flow.credentials
 
@@ -56,6 +60,7 @@ def get_drive_service():
                 f.write(creds.to_json())
 
     return get_drive_service_cached(creds)
+
 # -----------------------------
 # Drive 操作関数（既存コードと同じ）
 # -----------------------------
@@ -287,6 +292,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
