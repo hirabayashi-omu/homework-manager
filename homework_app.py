@@ -267,9 +267,7 @@ with tabs[1]:
         new_subject = st.text_input("（新しい科目を追加する場合）", key="input_new_subject")
         content = st.text_area("宿題内容", height=200, key="input_content")
         due = st.date_input("提出日", value=st.session_state.input_due, key="input_due")
-        status = st.selectbox("ステータス", ["未着手","作業中","完了"], 
-                              index=["未着手","作業中","完了"].index(st.session_state.input_status), 
-                              key="input_status")
+        status = st.selectbox("ステータス", ["未着手","作業中","完了"], index=["未着手","作業中","完了"].index(st.session_state.input_status), key="input_status")
         st.markdown("提出方法")
         submit_method = st.radio(
             "",
@@ -299,7 +297,7 @@ with tabs[1]:
             st.session_state.homework.append(hw)
             drive_save_json(HOMEWORK_FILE, st.session_state.homework)
             st.success("宿題を追加しました。")
-            st.experimental_rerun()
+            st.experimental_rerun()  # 追加後は rerun
 
     # 右: 一覧表示と操作
     with right:
@@ -311,7 +309,6 @@ with tabs[1]:
             df["due_dt"] = pd.to_datetime(df["due"]).dt.date
             df["created_at_dt"] = pd.to_datetime(df["created_at"])
 
-            # フィルター
             filter_status = st.selectbox("ステータスで絞り込む", options=["全て","未着手","作業中","完了"], index=0)
             keyword = st.text_input("キーワード検索（科目・内容）", value="")
 
@@ -332,12 +329,12 @@ with tabs[1]:
                 st.table(upcoming[["subject","content","due_dt","status","submit_method"]])
 
             # フラグ初期化
-            for k in ["delete_id","done_id","update_status"]:
-                if k not in st.session_state:
-                    st.session_state[k] = None
+            delete_id = None
+            done_id = None
+            update_status = []
 
-            # ループ内でボタンを描画（キーは固定）
-            for _, row in df.iterrows():
+            # ループ内ではフラグだけ
+            for idx, row in df.reset_index(drop=True).iterrows():
                 cols = st.columns([3,3,2,2,2])
 
                 with cols[0]:
@@ -350,7 +347,7 @@ with tabs[1]:
                     st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
 
                 with cols[2]:
-                    key_status = f"status_{int(row['id'])}"
+                    key_status = f"status_{int(row['id'])}_{idx}"
                     if key_status not in st.session_state:
                         st.session_state[key_status] = row["status"]
                     new_status = st.selectbox(
@@ -360,50 +357,49 @@ with tabs[1]:
                         key=key_status
                     )
                     if new_status != row["status"]:
-                        st.session_state.update_status = {"id": row["id"], "status": new_status}
+                        update_status.append({"id": row["id"], "status": new_status})
 
                 with cols[3]:
-                    if st.button("完了にする", key=f"done_{int(row['id'])}"):
-                        st.session_state.done_id = row["id"]
+                    if st.button("完了にする", key=f"done_{int(row['id'])}_{idx}"):
+                        done_id = row["id"]
 
                 with cols[4]:
-                    if st.button("削除", key=f"del_{int(row['id'])}"):
-                        st.session_state.delete_id = row["id"]
+                    if st.button("削除", key=f"del_{int(row['id'])}_{idx}"):
+                        delete_id = row["id"]
 
             # ループ外でまとめて処理
             rerun_needed = False
 
-            if st.session_state.get("delete_id") is not None:
-                st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
+            if delete_id is not None:
+                st.session_state.homework = [h for h in st.session_state.homework if h["id"] != delete_id]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("削除しました。")
-                st.session_state.delete_id = None
                 rerun_needed = True
 
-            if st.session_state.get("done_id") is not None:
+            if done_id is not None:
                 for h in st.session_state.homework:
-                    if h["id"] == st.session_state.done_id:
+                    if h["id"] == done_id:
                         h["status"] = "完了"
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("完了にしました。")
-                st.session_state.done_id = None
                 rerun_needed = True
 
-            if st.session_state.get("update_status") is not None:
+            for upd in update_status:
                 for h in st.session_state.homework:
-                    if h["id"] == st.session_state.update_status["id"]:
-                        h["status"] = st.session_state.update_status["status"]
+                    if h["id"] == upd["id"]:
+                        h["status"] = upd["status"]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("ステータスを更新しました。")
-                st.session_state.update_status = None
                 rerun_needed = True
 
             if rerun_needed:
                 st.experimental_rerun()
 
 
+
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
