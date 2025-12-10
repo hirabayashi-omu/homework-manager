@@ -331,8 +331,13 @@ with tabs[1]:
             export_df = export_df.astype(str)
             csv_buf = io.StringIO()
             export_df.to_csv(csv_buf, index=False)
-            st.download_button("宿題一覧をCSVでダウンロード", data=csv_buf.getvalue().encode("utf-8"), file_name="homework_list.csv", mime="text/csv")
-
+            # Excelで文字化けしないよう Shift_JIS でエンコード
+            st.download_button(
+                "宿題一覧をCSVでダウンロード",
+                data=csv_buf.getvalue().encode("cp932"),  # ← 修正ポイント
+                file_name="homework_list.csv",
+                mime="text/csv"
+            )
 # ---- フッター ----
 st.markdown("---")
 st.caption("※ このアプリはローカルに JSON を保存します。複数人で共有する場合は、共有場所にこのファイルを置くか、Streamlit Cloud等へデプロイしてURLを共有してください（本課題ではデプロイ不要）。")
