@@ -217,7 +217,7 @@ with tabs[1]:
         st.markdown("#### クイック操作")
         if st.button("未着手のみ表示（右側フィルタをセット）"):
             st.session_state.filter_status = "未着手"
-            st.experimental_rerun()
+            st.rerun()
         if st.button("締切3日以内の宿題をハイライト"):
             st.session_state.filter_status = "近い締切"
 
@@ -305,7 +305,7 @@ with tabs[1]:
                                     h["status"] = new_status
                                     save_json(HOMEWORK_FILE, st.session_state.homework)
                                     st.success("ステータスを更新しました。")
-                                    st.experimental_rerun()
+                                    st.rerun()
                 # Mark done quick button
                 with cols[3]:
                     if st.button(f"完了にする_{row['id']}", key=f"done_{row['id']}"):
@@ -314,14 +314,14 @@ with tabs[1]:
                                 h["status"] = "完了"
                                 save_json(HOMEWORK_FILE, st.session_state.homework)
                                 st.success("完了にしました。")
-                                st.experimental_rerun()
+                                st.rerun()
                 # delete
                 with cols[4]:
                     if st.button(f"削除_{row['id']}", key=f"del_{row['id']}"):
                         st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
                         save_json(HOMEWORK_FILE, st.session_state.homework)
                         st.success("削除しました。")
-                        st.experimental_rerun()
+                        st.rerun()
 
             # CSV ダウンロード
             st.markdown("---")
