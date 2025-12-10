@@ -251,7 +251,7 @@ with tabs[1]:
                 df_filtered = df_filtered[
                     df_filtered["subject"].str.contains(keyword, case=False, na=False) |
                     df_filtered["content"].str.contains(keyword, case=False, na=False)
-                ]
+
 
             # --- 直近3日以内ハイライト ---
             df_recent = df_filtered[df_filtered["days_left"]<=3]
@@ -265,58 +265,10 @@ with tabs[1]:
             else:
                 st.info("直近の宿題はありません。")
 
-            # ---- 完了・削除ボタン ----
-            for idx, row in df_filtered.iterrows():
-                cols = st.columns([3,1,1,1])
-                cols[0].markdown(
-                    f"**{row['subject']}** - {row['content']}<br>"
-                    f"提出日: {row['due_dt']} / 提出方法: {row['submit_method']} {row.get('submit_method_detail','')}",
-                    unsafe_allow_html=True
-                )
-                # ステータス変更
-                new_status = cols[1].selectbox(
-                    "", ["未着手","作業中","完了"], index=["未着手","作業中","完了"].index(row["status"]), key=f"status_{row['id']}"
-                )
-                if new_status != row["status"]:
-                    for h in st.session_state.homework:
-                        if h["id"] == row["id"]:
-                            h["status"] = new_status
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.experimental_rerun()
 
-            # ---- 完了・削除ボタン ----
-            for idx, row in df_filtered.iterrows():
-                cols = st.columns([3,1,1,1])
-                cols[0].markdown(
-                    f"**{row['subject']}** - {row['content']}<br>"
-                    f"提出日: {row['due_dt']} / 提出方法: {row['submit_method']} {row.get('submit_method_detail','')}",
-                    unsafe_allow_html=True
-                )
-                # ステータス変更
-                new_status = cols[1].selectbox(
-                    "", ["未着手","作業中","完了"], index=["未着手","作業中","完了"].index(row["status"]), key=f"status_{row['id']}"
-                )
-                if new_status != row["status"]:
-                    for h in st.session_state.homework:
-                        if h["id"] == row["id"]:
-                            h["status"] = new_status
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.experimental_rerun()
 
-                # 完了ボタン
-                if cols[2].button("完了", key=f"done_{row['id']}"):
-                    for h in st.session_state.homework:
-                        if h["id"] == row["id"]:
-                            h["status"] = "完了"
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.success("完了にしました。")
-                
-                # 削除ボタン
-                if cols[3].button("削除", key=f"del_{row['id']}"):
-                    st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.success("削除しました。")
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
