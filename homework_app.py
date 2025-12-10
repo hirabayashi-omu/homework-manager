@@ -358,15 +358,16 @@ with tabs[1]:
             # -----------------------------
             # ループ外でまとめて処理
             # -----------------------------
+            # ループ外でまとめて処理
             rerun_needed = False
-
+            
             if st.session_state.delete_id is not None:
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("削除しました。")
                 st.session_state.delete_id = None
                 rerun_needed = True
-
+            
             if st.session_state.done_id is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.done_id:
@@ -375,7 +376,7 @@ with tabs[1]:
                 st.success("完了にしました。")
                 st.session_state.done_id = None
                 rerun_needed = True
-
+            
             if st.session_state.update_status is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.update_status["id"]:
@@ -384,7 +385,8 @@ with tabs[1]:
                 st.success("ステータスを更新しました。")
                 st.session_state.update_status = None
                 rerun_needed = True
-
+            
+            # **重要**: rerun は DataFrame や UI を参照せず、session_state 更新後にだけ呼ぶ
             if rerun_needed:
                 st.experimental_rerun()
 
@@ -399,6 +401,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
