@@ -1,12 +1,6 @@
-# homework_manager_drive_full.py
-# -*- coding: utf-8 -*-
-"""
-個人管理/クラス共有: 時間割 & 宿題管理アプリ
-Streamlit Cloud 対応版。JSON は Drive に保存。
-"""
 
 import streamlit as st
-import os, json, io
+import io, json
 from datetime import date, datetime
 import pandas as pd
 from google.oauth2 import service_account
@@ -16,20 +10,16 @@ from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 # -----------------------------
 # Google Drive 設定
 # -----------------------------
-FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"  # 対象フォルダID
+FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"  # 共有ドライブのフォルダID
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
+
 # -----------------------------
-# Drive API 接続関数
+# Drive API 接続
 # -----------------------------
 @st.cache_resource
 def get_drive_service():
-    import os, json
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-
-    # Streamlit Secrets から取得
     creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
     creds = service_account.Credentials.from_service_account_info(
         creds_info,
@@ -37,58 +27,30 @@ def get_drive_service():
     )
     service = build("drive", "v3", credentials=creds)
     return service
-# -----------------------------
-# Drive API 接続
-# -----------------------------
-@st.cache_resource
+
+service = get_drive_service()
+
 def drive_find_file(filename):
-    service = get_drive_service()
     try:
         results = service.files().list(
             q=f"name='{filename}' and trashed=false",
             spaces="drive",
             fields="files(id, name)",
-            supportsAllDrives=True,  # 追加
-            includeItemsFromAllDrives=True  # 追加
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True
         ).execute()
     except Exception as e:
         st.error(f"Drive API error: {e}")
         return None
 
     files = results.get("files", [])
-    if not files:
-        return None
-    return files[0]["id"]
-
-def drive_save_json(filename, data):
-    service = get_drive_service()
-    try:
-        file_id = drive_find_file(filename)
-        content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-        media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
-
-        if file_id:
-            service.files().update(
-                fileId=file_id, 
-                media_body=media,
-                supportsAllDrives=True  # 追加
-            ).execute()
-        else:
-            body = {"name": filename, "parents": [FOLDER_ID]}
-            service.files().create(
-                body=body,
-                media_body=media,
-                supportsAllDrives=True  # 追加
-            ).execute()
-    except Exception as e:
-        st.error(f"Drive 保存エラー: {e}")
-
+    return files[0]["id"] if files else None
 
 def drive_load_json(filename, default):
     file_id = drive_find_file(filename)
     if not file_id:
         return default
-    request = service.files().get_media(fileId=file_id)
+    request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
@@ -101,24 +63,18 @@ def drive_load_json(filename, default):
         return default
 
 def drive_save_json(filename, data):
-    """
-    JSON データを Google Drive に保存（既存なら update、新規なら create）。
-    Shared Drive 対応。
-    """
     try:
         file_id = drive_find_file(filename)
         content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
         media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
 
         if file_id:
-            # 既存ファイルを更新
             service.files().update(
                 fileId=file_id,
                 media_body=media,
                 supportsAllDrives=True
             ).execute()
         else:
-            # 新規作成
             body = {"name": filename, "parents": [FOLDER_ID]}
             service.files().create(
                 body=body,
@@ -128,11 +84,10 @@ def drive_save_json(filename, data):
     except Exception as e:
         st.error(f"Drive 保存エラー: {e}")
 
-
 # -----------------------------
 # Streamlit 設定
 # -----------------------------
-st.set_page_config(page_title="個人管理/クラス共有：時間割＆宿題管理", layout="wide")
+st.set_page_config(page_title="共有ドライブ版：時間割＆宿題管理", layout="wide")
 
 # -----------------------------
 # session_state 初期化
@@ -142,9 +97,8 @@ def init_session_state():
     if "timetable" not in st.session_state:
         default_tt = {"月":["","","",""], "火":["","","",""], "水":["","","",""], "木":["","","",""], "金":["","","",""]}
         loaded_tt = drive_load_json(TIMETABLE_FILE, default_tt)
-        for d in ["月","火","水","木","金"]:
-            v = loaded_tt.get(d, [""]*4)
-            if not isinstance(v, list) or len(v) != 4:
+        for d in loaded_tt:
+            if not isinstance(loaded_tt[d], list) or len(loaded_tt[d]) != 4:
                 loaded_tt[d] = [""]*4
         st.session_state.timetable = loaded_tt
 
@@ -170,7 +124,7 @@ def init_session_state():
             subs = set()
             for vals in st.session_state.timetable.values():
                 for s in vals:
-                    if isinstance(s, str) and s.strip():
+                    if isinstance(s,str) and s.strip():
                         subs.add(s.strip())
             for c in ["数学","物理","化学","英語","日本史","情報","機械設計"]:
                 subs.add(c)
@@ -391,6 +345,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
