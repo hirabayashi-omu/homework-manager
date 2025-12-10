@@ -220,11 +220,12 @@ with tabs[1]:
             st.success("宿題を追加しました。")
 
     # ---- 右: 宿題一覧 ----
-    # ---- 右: 宿題一覧 ----
     with right:
-        hw_container = st.container()  # 宿題リスト専用コンテナ
+        hw_container = st.container()
+        filter_status = st.selectbox("ステータスで絞り込む", ["全て","未着手","作業中","完了"], key="filter_status_hw_right")
+        keyword = st.text_input("キーワード検索（科目・内容）", value="", key="filter_keyword_hw_right")
+    
         hw_list = st.session_state.homework
-
         if hw_list:
             df = pd.DataFrame(hw_list)
             df["due_dt"] = pd.to_datetime(df["due"]).dt.date
@@ -232,10 +233,7 @@ with tabs[1]:
             today_dt = date.today()
             df["days_left"] = (df["due_dt"] - today_dt).apply(lambda x: x.days)
             df = df.sort_values(["due_dt","created_at_dt"], ascending=[True, False])
-
-            filter_status = st.selectbox("ステータスで絞り込む", ["全て","未着手","作業中","完了"], key="filter_status_hw")
-            keyword = st.text_input("キーワード検索（科目・内容）", value="", key="filter_keyword_hw")
-
+    
             df_filtered = df.copy()
             if filter_status != "全て":
                 df_filtered = df_filtered[df_filtered["status"]==filter_status]
@@ -244,11 +242,7 @@ with tabs[1]:
                     df_filtered["subject"].str.contains(keyword, case=False, na=False) |
                     df_filtered["content"].str.contains(keyword, case=False, na=False)
                 ]
-
-            df_recent = df_filtered[df_filtered["days_left"] <= 3]
-            if not df_recent.empty:
-                st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
-
+    
             for idx, row in df_filtered.iterrows():
                 hw_row = hw_container.container()
                 cols = hw_row.columns([3,1,1,1])
@@ -282,6 +276,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
