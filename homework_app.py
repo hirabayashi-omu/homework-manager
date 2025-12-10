@@ -125,66 +125,6 @@ st.set_page_config(page_title="共有ドライブ版：時間割＆宿題管理"
 st.title("個人管理/クラス共有：時間割 & 宿題管理アプリ")
 tabs = st.tabs(["📝 時間割入力", "📚 宿題一覧"])
 
-# =============================
-# タブ1: 時間割入力
-# =============================
-with tabs[0]:
-    st.markdown("<h1 style='color:#1f77b4; font-size:36px;'>📝 時間割入力</h1>", unsafe_allow_html=True)
-    days = ["月","火","水","木","金"]
-    period_labels = ["1/2限","3/4限","5/6限","7/8限"]
-
-    col1, col2 = st.columns([3,1])
-    with col1:
-        for d in days:
-            with st.expander(f"{d}曜日"):
-                cols = st.columns(4)
-                for i, c in enumerate(cols):
-                    key = f"tt_{d}_{i}"
-                    if key not in st.session_state:
-                        st.session_state[key] = st.session_state.timetable[d][i]
-                    st.text_input(f"{period_labels[i]}", key=key)
-    with col2:
-        if st.button("時間割を保存"):
-            for d in days:
-                st.session_state.timetable[d] = [st.session_state[f"tt_{d}_{i}"] for i in range(4)]
-            drive_save_json(TIMETABLE_FILE, st.session_state.timetable)
-
-            # subjects 更新
-            subs = set(st.session_state.subjects)
-            for vals in st.session_state.timetable.values():
-                for s in vals:
-                    if isinstance(s,str) and s.strip():
-                        subs.add(s.strip())
-            st.session_state.subjects = sorted(list(subs))
-            drive_save_json(SUBJECT_FILE, st.session_state.subjects)
-
-            st.success("時間割を Google Drive に保存しました！")
-
-    st.markdown("---")
-    st.markdown("### プレビュー")
-    df_preview = pd.DataFrame({d: st.session_state.timetable[d] for d in days}, index=period_labels)
-    st.dataframe(df_preview, use_container_width=True)
-
-    # JSON アップロード
-    uploaded_file = st.file_uploader("ここに JSON ファイルをドラッグ＆ドロップ", type=["json"])
-    if uploaded_file is not None:
-        try:
-            loaded_tt = json.load(uploaded_file)
-            for d in loaded_tt:
-                if d in st.session_state.timetable:
-                    for i in range(4):
-                        st.session_state.timetable[d][i] = loaded_tt[d][i] if i<len(loaded_tt[d]) else ""
-            st.success("時間割を読み込みました！")
-        except Exception as e:
-            st.error(f"JSON 読み込みエラー: {e}")
-
-
-# -----------------------------
-# Streamlit 設定
-# -----------------------------
-st.set_page_config(page_title="共有ドライブ版：時間割＆宿題管理", layout="wide")
-st.title("個人管理/クラス共有：時間割 & 宿題管理アプリ")
-tabs = st.tabs(["📝 時間割入力", "📚 宿題一覧"])
 
 # =============================
 # タブ1: 時間割入力
@@ -344,6 +284,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
