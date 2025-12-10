@@ -316,17 +316,9 @@ with tabs[1]:
             if "done_id" not in st.session_state: st.session_state.done_id = None
             if "update_status" not in st.session_state: st.session_state.update_status = None
 
-            # 行ごとの操作
+            # 行ごとの操作（ループ内ではフラグだけセット）
             for _, row in df.reset_index(drop=True).iterrows():
-                st.markdown("---")
                 cols = st.columns([3,3,2,2,2])
-
-                with cols[0]:
-                    st.markdown(f"**{row['subject']}** — {row['content']}")
-                    st.write(f"提出: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
-                with cols[1]:
-                    st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
-                    st.write(f"追加: {pd.to_datetime(row['created_at']).strftime('%Y-%m-%d %H:%M')}")
                 with cols[2]:
                     key_status = f"status_{int(row['id'])}"
                     if key_status not in st.session_state: st.session_state[key_status] = row["status"]
@@ -335,21 +327,27 @@ with tabs[1]:
                                               key=key_status)
                     if new_status != row["status"]:
                         st.session_state.update_status = {"id": row["id"], "status": new_status}
+            
                 with cols[3]:
                     if st.button(f"完了にする_{int(row['id'])}", key=f"done_{int(row['id'])}"):
                         st.session_state.done_id = row["id"]
+            
                 with cols[4]:
                     if st.button(f"削除_{int(row['id'])}", key=f"del_{int(row['id'])}"):
                         st.session_state.delete_id = row["id"]
-
-            # ループ外で一括処理
+            
+            # -----------------------------
+            # ループ外でまとめて処理
+            # -----------------------------
+            rerun_needed = False
+            
             if st.session_state.delete_id is not None:
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("削除しました。")
                 st.session_state.delete_id = None
-                st.experimental_rerun()
-
+                rerun_needed = True
+            
             if st.session_state.done_id is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.done_id:
@@ -357,8 +355,8 @@ with tabs[1]:
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("完了にしました。")
                 st.session_state.done_id = None
-                st.experimental_rerun()
-
+                rerun_needed = True
+            
             if st.session_state.update_status is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.update_status["id"]:
@@ -366,7 +364,11 @@ with tabs[1]:
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("ステータスを更新しました。")
                 st.session_state.update_status = None
+                rerun_needed = True
+            
+            if rerun_needed:
                 st.experimental_rerun()
+
 
             # CSV ダウンロード
             st.markdown("---")
@@ -379,3 +381,4 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
