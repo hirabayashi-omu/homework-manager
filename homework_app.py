@@ -232,7 +232,9 @@ with tabs[1]:
         "<h1 style='color:#ff7f0e; font-size:36px; font-weight:bold;'>📚 宿題管理（Google Drive 永続化）</h1>",
         unsafe_allow_html=True
     )
-
+    # ここで columns を作成
+    left, right = st.columns([1,2])
+    
     # 左: 登録フォーム
     with left:
         st.subheader("宿題の登録")
@@ -356,6 +358,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
