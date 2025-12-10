@@ -15,9 +15,20 @@ HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
 
 # -----------------------------
-# Google Drive 保存/読み込み（共有ドライブ対応）
+# Drive API 接続
 # -----------------------------
+@st.cache_resource
+def get_drive_service():
+    creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+    creds = service_account.Credentials.from_service_account_info(
+        creds_info, scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    service = build("drive", "v3", credentials=creds)
+    return service
 
+# -----------------------------
+# 共有ドライブ対応の保存/読み込み
+# -----------------------------
 def drive_find_file(filename, folder_id=FOLDER_ID):
     service = get_drive_service()
     query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
@@ -44,10 +55,7 @@ def drive_save_json(filename, data, folder_id=FOLDER_ID):
                 supportsAllDrives=True
             ).execute()
         else:
-            body = {
-                "name": filename,
-                "parents": [folder_id]
-            }
+            body = {"name": filename, "parents": [folder_id]}
             service.files().create(
                 body=body,
                 media_body=media,
@@ -295,6 +303,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
