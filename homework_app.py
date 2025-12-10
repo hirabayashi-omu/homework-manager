@@ -197,20 +197,24 @@ with tabs[1]:
         submit_method_detail = st.text_input("その他（具体）") if submit_method=="その他" else ""
 
         if st.button("宿題を追加", key="add_homework"):
-            use_subject = st.session_state.input_new_subject.strip() or st.session_state.input_subject
+            # 科目決定
+            use_subject = new_subject.strip() if new_subject.strip() else subject
             if use_subject not in st.session_state.subjects:
                 st.session_state.subjects.append(use_subject)
                 st.session_state.subjects.sort()
                 drive_save_json(SUBJECT_FILE, st.session_state.subjects)
         
+            # 内容を必ず文字列として取得
+            content_text = content.strip() if content.strip() else "（内容未記入）"
+            
             hw = {
                 "id": int(datetime.now().timestamp()*1000),
                 "subject": use_subject,
-                "content": st.session_state.input_content.strip(),
-                "due": st.session_state.input_due.isoformat(),
-                "status": st.session_state.input_status,
-                "submit_method": st.session_state.input_submit_method,
-                "submit_method_detail": st.session_state.input_submit_method_detail if st.session_state.input_submit_method=="その他" else "",
+                "content": content_text,   # ←ここで保存
+                "due": due.isoformat(),
+                "status": status,
+                "submit_method": submit_method,
+                "submit_method_detail": submit_method_detail.strip(),
                 "created_at": datetime.now().isoformat()
             }
             st.session_state.homework.append(hw)
@@ -324,6 +328,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
