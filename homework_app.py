@@ -47,45 +47,42 @@ def drive_find_file(filename):
         results = service.files().list(
             q=f"name='{filename}' and trashed=false",
             spaces="drive",
-            fields="files(id, name)"
-        ).execute()
-    except Exception as e:
-        st.warning(f"Drive API error: {e}")
-        return None
-
-    if not results or "files" not in results:
-        return None
-
-    files = results["files"]
-    if not files:
-        return None
-
-    return files[0]["id"]
-
-service = get_drive_service()
-
-# -----------------------------
-# Drive Utility
-# -----------------------------
-def drive_find_file(filename):
-    service = get_drive_service()
-    try:
-        results = service.files().list(
-            q=f"name='{filename}' and trashed=false",
-            spaces="drive",
-            fields="files(id, name)"
+            fields="files(id, name)",
+            supportsAllDrives=True,  # 追加
+            includeItemsFromAllDrives=True  # 追加
         ).execute()
     except Exception as e:
         st.error(f"Drive API error: {e}")
-        return None
-
-    if results is None:
         return None
 
     files = results.get("files", [])
     if not files:
         return None
     return files[0]["id"]
+
+def drive_save_json(filename, data):
+    service = get_drive_service()
+    try:
+        file_id = drive_find_file(filename)
+        content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+        media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
+
+        if file_id:
+            service.files().update(
+                fileId=file_id, 
+                media_body=media,
+                supportsAllDrives=True  # 追加
+            ).execute()
+        else:
+            body = {"name": filename, "parents": [FOLDER_ID]}
+            service.files().create(
+                body=body,
+                media_body=media,
+                supportsAllDrives=True  # 追加
+            ).execute()
+    except Exception as e:
+        st.error(f"Drive 保存エラー: {e}")
+
 
 def drive_load_json(filename, default):
     file_id = drive_find_file(filename)
@@ -394,6 +391,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
