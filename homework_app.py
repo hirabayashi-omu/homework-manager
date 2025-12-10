@@ -248,20 +248,21 @@ with right:
             def highlight_due(row):
                 return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
 
+            # 表示用
             display_df = df_recent[["subject","content","due_dt","status","submit_method","days_left"]].copy()
             styled = display_df.style.apply(highlight_due, axis=1)
-            
-            # days_left は非表示にして表示
             st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
             
             st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
-            
+
             # コンパクト表示: テーブル＋操作ボタン
             for idx, row in df_recent.reset_index(drop=True).iterrows():
                 cols = st.columns([3, 1, 1, 1])
+                content_text = row['content'] if row['content'].strip() else "（内容未記入）"
+                submit_detail = f" {row['submit_method_detail']}" if row['submit_method_detail'].strip() else ""
                 cols[0].markdown(
-                    f"**{row['subject']}** - {row['content']}<br>"
-                    f"提出日: {row['due_dt']} / 提出方法: {row['submit_method']} {row['submit_method_detail']}",
+                    f"**{row['subject']}** - {content_text}<br>"
+                    f"提出日: {row['due_dt']} / 提出方法: {row['submit_method']}{submit_detail}",
                     unsafe_allow_html=True
                 )
                 # ステータス表示
@@ -282,7 +283,7 @@ with right:
                 if cols[3].button("削除", key=f"del_{row['id']}"):
                     st.session_state.delete_id = row["id"]
         else:
-            st.info("直近3日以内の宿題はありません。")
+            st.info("直近の宿題はありません。")
 
 
 # ---- ループ外でまとめて処理 ----
@@ -323,6 +324,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
