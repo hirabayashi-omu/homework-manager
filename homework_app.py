@@ -4,8 +4,8 @@ from datetime import date, datetime
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 import pandas as pd
 
 # -----------------------------
@@ -18,47 +18,36 @@ SUBJECT_FILE = "subjects.json"
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 TOKEN_FILE = ".streamlit/token.json"
-
-# Streamlit Cloud 上のリダイレクト URI
-APP_URL = st.secrets.get("https://homework-manager-jdk5mdhfcjnz2hsywilq5q.streamlit.app")  # 例: https://your-app-name.streamlit.app
+CLIENT_CONFIG = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+REDIRECT_URI = "https://homework-manager-jdk5mdhfcjnz2hsywilq5q.streamlit.app/.auth/callback"
 
 # -----------------------------
 # Google Drive サービス取得
 # -----------------------------
 @st.cache_resource
 def get_drive_service_cached(creds):
-    service = build("drive", "v3", credentials=creds)
-    return service
+    return build("drive", "v3", credentials=creds)
 
 def get_drive_service():
     creds = None
+    # 保存済みトークンがある場合
     if os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
 
+    # トークンがないか無効なら認証
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            client_config = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+            # Flow 作成
             flow = Flow.from_client_config(
-                client_config,
+                CLIENT_CONFIG,
                 scopes=SCOPES,
-                redirect_uri="https://homework-manager-jdk5mdhfcjnz2hsywilq5q.streamlit.app/.auth/callback"
+                redirect_uri=REDIRECT_URI
             )
-
             auth_url, _ = flow.authorization_url(prompt="consent")
-            st.info(f"まずこの URL にアクセスして認証してください:\n{auth_url}")
-
-            code = st.text_input("認証コードを入力してください", key="auth_code")
-            if not code:
-                st.stop()
-
-            flow.fetch_token(code=code)
-            creds = flow.credentials
-
-            os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
-            with open(TOKEN_FILE, "w", encoding="utf-8") as f:
-                f.write(creds.to_json())
+            st.markdown(f"[ここをクリックして Google にログイン]({auth_url})", unsafe_allow_html=True)
+            st.stop()  # 認証後に再読み込みされる
 
     return get_drive_service_cached(creds)
 
@@ -128,9 +117,6 @@ def init_session_state():
 
 init_session_state()
 st.write("✅ セッション初期化完了")
-
-
-
 
 # -----------------------------
 # Streamlit 設定
@@ -294,6 +280,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
