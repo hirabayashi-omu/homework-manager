@@ -20,7 +20,7 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 TOKEN_FILE = ".streamlit/token.json"
 
 # Streamlit Cloud 上のリダイレクト URI
-APP_URL = st.secrets.get("APP_URL")  # 例: https://your-app-name.streamlit.app
+APP_URL = st.secrets.get("https://homework-manager-jdk5mdhfcjnz2hsywilq5q.streamlit.app/")  # 例: https://your-app-name.streamlit.app
 
 # -----------------------------
 # Google Drive サービス取得
@@ -293,6 +293,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
