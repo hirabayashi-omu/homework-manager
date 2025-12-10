@@ -179,7 +179,7 @@ with tabs[0]:
             st.error(f"JSON 読み込みエラー: {e}")
 
 # =============================
-# タブ2: 宿題管理
+# タブ2: 宿題管理（修正版）
 # =============================
 with tabs[1]:
     st.markdown("<h1 style='color:#ff7f0e; font-size:36px;'>📚 宿題管理</h1>", unsafe_allow_html=True)
@@ -244,27 +244,24 @@ with tabs[1]:
             df_recent = df_filtered[df_filtered["days_left"]<=3]
             if not df_recent.empty:
                 st.markdown(f"登録件数: **{len(df_recent)} 件**")
-                def highlight_due(row):
-                    return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
-                styled = df_recent[["subject","content","due_dt","status","submit_method","days_left"]].style.apply(highlight_due, axis=1)
-                st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
+                st.dataframe(
+                    df_recent[["subject","content","due_dt","status","submit_method"]],
+                    use_container_width=True
+                )
                 st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
             else:
                 st.info("直近の宿題はありません。")
 
             # ---- 完了・削除・ステータス変更 ----
+            rerun_needed = False
             for idx, row in df_filtered.iterrows():
-                # rowに必要なキーがあるか確認
-                if "status" not in row or "id" not in row:
-                    continue
-            
                 cols = st.columns([3, 1, 1, 1])
                 cols[0].markdown(
                     f"**{row['subject']}** - {row.get('content','（内容未記入）')}<br>"
                     f"提出日: {row.get('due_dt','')} / 提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}",
                     unsafe_allow_html=True
                 )
-            
+
                 # ステータス変更
                 new_status = cols[1].selectbox(
                     "",
@@ -276,23 +273,27 @@ with tabs[1]:
                     for h in st.session_state.homework:
                         if h["id"] == row["id"]:
                             h["status"] = new_status
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.success("ステータスを更新しました。")
-            
+                    rerun_needed = True
+
                 # 完了ボタン
                 if cols[2].button("完了", key=f"done_{row['id']}"):
                     for h in st.session_state.homework:
                         if h["id"] == row["id"]:
                             h["status"] = "完了"
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.success("完了にしました。")
-            
+                    rerun_needed = True
+
                 # 削除ボタン
                 if cols[3].button("削除", key=f"del_{row['id']}"):
                     st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.success("削除しました。")
+                    rerun_needed = True
+
+            # ループ外でまとめて保存＆rerun
+            if rerun_needed:
+                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+                st.experimental_rerun()
+
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
