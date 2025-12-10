@@ -77,6 +77,7 @@ def drive_load_json(filename, default):
 # session_state 初期化
 # -----------------------------
 def init_session_state():
+    # --- 時間割 ---
     if "timetable" not in st.session_state:
         default_tt = {"月":["","","",""], "火":["","","",""], "水":["","","",""], "木":["","","",""], "金":["","","",""]}
         loaded_tt = drive_load_json(TIMETABLE_FILE, default_tt)
@@ -85,18 +86,29 @@ def init_session_state():
                 loaded_tt[d] = [""]*4
         st.session_state.timetable = loaded_tt
 
+    # --- 宿題 ---
     if "homework" not in st.session_state:
         loaded_hw = drive_load_json(HOMEWORK_FILE, [])
+        safe_hw = []
         if isinstance(loaded_hw, list):
             for h in loaded_hw:
-                if "due" not in h or not h["due"]:
+                if not isinstance(h, dict):
+                    continue  # dictでない場合はスキップ
+                # due の補正
+                due_val = h.get("due")
+                if not isinstance(due_val, str) or not due_val.strip():
                     h["due"] = date.today().isoformat()
-                if "created_at" not in h:
+                # created_at の補正
+                created_val = h.get("created_at")
+                if not isinstance(created_val, str) or not created_val.strip():
                     h["created_at"] = datetime.now().isoformat()
-            st.session_state.homework = loaded_hw
-        else:
-            st.session_state.homework = []
+                # status 補正
+                if "status" not in h or h["status"] not in ["未着手","作業中","完了"]:
+                    h["status"] = "未着手"
+                safe_hw.append(h)
+        st.session_state.homework = safe_hw
 
+    # --- 科目 ---
     if "subjects" not in st.session_state:
         loaded_subs = drive_load_json(SUBJECT_FILE, [])
         if isinstance(loaded_subs, list) and loaded_subs:
@@ -112,9 +124,11 @@ def init_session_state():
             st.session_state.subjects = sorted(list(subs))
             drive_save_json(SUBJECT_FILE, st.session_state.subjects)
 
+    # --- その他フラグ ---
     for flag in ["new_hw_added", "delete_id", "done_id", "update_status"]:
         if flag not in st.session_state:
             st.session_state[flag] = None
+
 
 init_session_state()
 
@@ -288,4 +302,5 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
