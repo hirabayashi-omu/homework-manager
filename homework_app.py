@@ -250,8 +250,6 @@ with right:
         upcoming = df[df["days_left"] <= 3]
         if not upcoming.empty:
             st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
-        else:
-            st.info("直近の宿題はありません。")
 
         # 直近の宿題のみ抽出（締切3日以内）
         today_dt = date.today()
@@ -331,6 +329,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
