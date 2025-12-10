@@ -325,7 +325,7 @@ with tabs[1]:
             for _, row in df.reset_index(drop=True).iterrows():
                 cols = st.columns([3,3,2,2,2])
                 
-                # 左側カラム: 宿題の情報表示
+                # 1列目: 宿題の情報表示
                 with cols[0]:
                     st.markdown(f"**{row['subject']}**")
                     st.write(row['content'])
@@ -334,27 +334,34 @@ with tabs[1]:
             
                 # 2列目: 提出方法
                 with cols[1]:
-                    st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
+                    submit_method = row.get('submit_method', '')
+                    submit_detail = row.get('submit_method_detail', '')
+                    st.write(f"提出方法: {submit_method} {submit_detail}")
             
                 # 3列目: ステータス変更
                 with cols[2]:
                     key_status = f"status_{int(row['id'])}"
-                    if key_status not in st.session_state: st.session_state[key_status] = row["status"]
-                    new_status = st.selectbox("", options=["未着手","作業中","完了"],
-                                              index=["未着手","作業中","完了"].index(st.session_state[key_status]),
-                                              key=key_status)
+                    if key_status not in st.session_state:
+                        st.session_state[key_status] = row["status"]
+                    new_status = st.selectbox(
+                        "",
+                        options=["未着手","作業中","完了"],
+                        index=["未着手","作業中","完了"].index(st.session_state[key_status]),
+                        key=key_status
+                    )
                     if new_status != row["status"]:
                         st.session_state.update_status = {"id": row["id"], "status": new_status}
             
                 # 4列目: 完了ボタン
                 with cols[3]:
-                    if st.button(f"完了にする", key=f"done_{int(row['id'])}"):
+                    if st.button("完了にする", key=f"done_{int(row['id'])}"):
                         st.session_state.done_id = row["id"]
             
                 # 5列目: 削除ボタン
                 with cols[4]:
-                    if st.button(f"削除", key=f"del_{int(row['id'])}")
+                    if st.button("削除", key=f"del_{int(row['id'])}"):
                         st.session_state.delete_id = row["id"]
+
             
             # -----------------------------
             # ループ外でまとめて処理
@@ -408,6 +415,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
