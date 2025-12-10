@@ -218,6 +218,7 @@ with tabs[1]:
             st.session_state.new_hw_added = True
 
 # ---- 右: 一覧表示 ----
+# ---- 右: 一覧表示 ----
 with right:
     hw_list = [h for h in st.session_state.homework if isinstance(h, dict)]
     if hw_list:
@@ -236,6 +237,16 @@ with right:
         if keyword.strip():
             df = df[df["subject"].str.contains(keyword, case=False, na=False) |
                     df["content"].str.contains(keyword, case=False, na=False)]
+
+        st.markdown(f"登録件数: **{len(df)} 件**")
+
+        # 条件付きハイライト用関数
+        def highlight_due(row):
+            return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
+
+        # 表示用データ
+        display_df = df[["subject","content","due_dt","status","submit_method"]].copy()
+        st.dataframe(display_df.style.apply(highlight_due, axis=1), use_container_width=True)
 
         st.markdown(f"登録件数: **{len(df)} 件**")
         upcoming = df[df["days_left"] <= 3]
@@ -303,5 +314,6 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
