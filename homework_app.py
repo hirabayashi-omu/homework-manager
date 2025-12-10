@@ -252,24 +252,6 @@ with tabs[1]:
             else:
                 st.info("直近の宿題はありません。")
 
-            # ---- 完了・削除ボタン ----
-            for idx, row in df_filtered.iterrows():
-                cols = st.columns([3,1,1,1])
-                cols[0].markdown(
-                    f"**{row['subject']}** - {row['content']}<br>"
-                    f"提出日: {row['due_dt']} / 提出方法: {row['submit_method']} {row.get('submit_method_detail','')}",
-                    unsafe_allow_html=True
-                )
-                # ステータス変更
-                new_status = cols[1].selectbox(
-                    "", ["未着手","作業中","完了"], index=["未着手","作業中","完了"].index(row["status"]), key=f"status_{row['id']}"
-                )
-                if new_status != row["status"]:
-                    for h in st.session_state.homework:
-                        if h["id"] == row["id"]:
-                            h["status"] = new_status
-                    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                    st.experimental_rerun()
 
             # ---- 完了・削除ボタン ----
             for idx, row in df_filtered.iterrows():
@@ -306,3 +288,4 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
