@@ -149,7 +149,7 @@ tabs = st.tabs([
 # -----------------------------
 with tabs[0]:
     st.markdown(
-        "<h1 style='color:#1f77b4; font-size:36px; font-weight:bold;'>📝 時間割入力（Google Drive 保存）</h1>",
+        "<h1 style='color:#1f77b4; font-size:36px; font-weight:bold;'>📝 時間割入力　</h1>",
         unsafe_allow_html=True
     )
 
@@ -229,7 +229,7 @@ with tabs[0]:
 # -----------------------------
 with tabs[1]:
     st.markdown(
-        "<h1 style='color:#ff7f0e; font-size:36px; font-weight:bold;'>📚 宿題管理（Google Drive 永続化）</h1>",
+        "<h1 style='color:#ff7f0e; font-size:36px; font-weight:bold;'>📚 宿題管理　</h1>",
         unsafe_allow_html=True
     )
     # ここで columns を作成
@@ -358,6 +358,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
