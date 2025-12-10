@@ -1,5 +1,10 @@
 # homework_manager.py
 # -*- coding: utf-8 -*-
+"""
+永続化バグ修正版: 時間割 & 宿題管理アプリ
+保存: 作業ディレクトリに JSON ファイルを作成して永続化（ローカル実行推奨）
+"""
+
 import streamlit as st
 import json
 import os
@@ -185,7 +190,7 @@ with tabs[0]:
                 st.session_state.subjects = sorted(list(subs))
                 save_json(SUBJECT_FILE, st.session_state.subjects)
                 st.success("インポート完了しました。")
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("辞書型の JSON をアップロードしてください。")
         except Exception as e:
@@ -344,5 +349,3 @@ with tabs[1]:
 # フッター
 st.markdown("---")
 st.caption("※ ローカルで実行することを推奨します。クラウドで動かす場合は永続化方法を別途用意してください。")
-
-
