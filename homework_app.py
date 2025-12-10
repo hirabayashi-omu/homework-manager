@@ -20,7 +20,23 @@ FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"  # 対象フォルダID
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
+# -----------------------------
+# Drive API 接続関数
+# -----------------------------
+@st.cache_resource
+def get_drive_service():
+    import os, json
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
 
+    # Streamlit Secrets から取得
+    creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
+    creds = service_account.Credentials.from_service_account_info(
+        creds_info,
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    service = build("drive", "v3", credentials=creds)
+    return service
 # -----------------------------
 # Drive API 接続
 # -----------------------------
@@ -359,5 +375,6 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
