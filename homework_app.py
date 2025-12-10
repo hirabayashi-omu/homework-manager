@@ -104,14 +104,35 @@ def drive_load_json(filename, default):
         return default
 
 def drive_save_json(filename, data):
-    file_id = drive_find_file(filename)
-    body = {"name": filename, "parents": [FOLDER_ID]}
-    content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-    media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
-    if file_id:
-        service.files().update(fileId=file_id, media_body=media).execute()
-    else:
-        service.files().create(body=body, media_body=media).execute()
+    """
+    JSON データを Google Drive に保存（既存なら update、新規なら create）。
+    フォルダ権限や存在チェックを強化。
+    """
+    try:
+        file_id = drive_find_file(filename)
+        content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+        media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
+
+        if file_id:
+            # 既存ファイルを更新
+            service.files().update(fileId=file_id, media_body=media).execute()
+        else:
+            # 新規作成時はフォルダ存在チェック
+            folder_exists = True
+            try:
+                service.files().get(fileId=FOLDER_ID, fields="id").execute()
+            except Exception:
+                folder_exists = False
+
+            if not folder_exists:
+                st.error(f"フォルダID {FOLDER_ID} が存在しないかアクセス権限がありません。")
+                return
+
+            body = {"name": filename, "parents": [FOLDER_ID]}
+            service.files().create(body=body, media_body=media).execute()
+    except Exception as e:
+        st.error(f"Drive 保存エラー: {e}")
+
 
 # -----------------------------
 # Streamlit 設定
@@ -375,6 +396,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
