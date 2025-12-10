@@ -5,6 +5,7 @@ import pandas as pd
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
+import time, random
 
 # -----------------------------
 # Google Drive 設定
@@ -298,108 +299,120 @@ with tabs[1]:
             st.success("宿題を追加しました。")
             st.experimental_rerun()  # 追加後に rerun
 
-    # 右: 一覧表示と操作
-    with right:
-        hw_list = [h for h in st.session_state.homework if isinstance(h, dict)]
-        if not hw_list:
-            st.info("登録された宿題はありません。")
-        else:
-            # ローカル変数 df に変換（session_state に入れない）
-            df = pd.DataFrame(hw_list)
-            df["due_dt"] = pd.to_datetime(df["due"]).dt.date
-            df["created_at_dt"] = pd.to_datetime(df["created_at"])
-            df["days_left"] = (df["due_dt"] - date.today()).apply(lambda x: x.days)
+# 右: 一覧表示と操作
+with right:
+    hw_list = [h for h in st.session_state.homework if isinstance(h, dict)]
+    if not hw_list:
+        st.info("登録された宿題はありません。")
+    else:
+        # DataFrame作成 & 重複削除
+        df = pd.DataFrame(hw_list).drop_duplicates(subset='id')
+        df["due_dt"] = pd.to_datetime(df["due"]).dt.date
+        df["created_at_dt"] = pd.to_datetime(df["created_at"])
+        
+        filter_status = st.selectbox("ステータスで絞り込む", options=["全て","未着手","作業中","完了"], index=0)
+        keyword = st.text_input("キーワード検索（科目・内容）", value="")
 
-            # フィルタリング
-            filter_status = st.selectbox("ステータスで絞り込む", ["全て","未着手","作業中","完了"], index=0)
-            keyword = st.text_input("キーワード検索（科目・内容）", value="")
-            if filter_status != "全て":
-                df = df[df["status"] == filter_status]
-            if keyword.strip():
-                df = df[df["subject"].str.contains(keyword, case=False, na=False) |
-                        df["content"].str.contains(keyword, case=False, na=False)]
-            df = df.sort_values(["due_dt","created_at_dt"], ascending=[True, False])
+        if filter_status != "全て":
+            df = df[df["status"] == filter_status]
+        if keyword.strip():
+            df = df[df["subject"].str.contains(keyword, case=False, na=False) |
+                    df["content"].str.contains(keyword, case=False, na=False)]
 
-            st.markdown(f"登録件数: **{len(df)} 件**")
-            upcoming = df[df["days_left"] <= 3]
-            if not upcoming.empty:
-                st.warning(f"締切が3日以内の宿題が **{len(upcoming)} 件** あります。")
-                st.table(upcoming[["subject","content","due_dt","status","submit_method"]])
+        df = df.sort_values(["due_dt","created_at_dt"], ascending=[True, False])
+        today_dt = date.today()
+        df["days_left"] = (df["due_dt"] - today_dt).apply(lambda x: x.days)
 
-            # ループ内でフラグだけセット
-            if "delete_id" not in st.session_state: st.session_state.delete_id = None
-            if "done_id" not in st.session_state: st.session_state.done_id = None
-            if "update_status" not in st.session_state: st.session_state.update_status = None
+        st.markdown(f"登録件数: **{len(df)} 件**")
+        upcoming = df[df["days_left"] <= 3]
+        if not upcoming.empty:
+            st.warning(f"締切が3日以内の宿題が **{len(upcoming)} 件** あります。")
+            st.table(upcoming[["subject","content","due_dt","status","submit_method"]])
 
-            for _, row in df.reset_index(drop=True).iterrows():
-                cols = st.columns([3,3,2,2,2])
-                # 情報表示
-                with cols[0]:
-                    st.markdown(f"**{row['subject']}**")
-                    st.write(row['content'])
-                    st.write(f"提出日: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
-                    st.write(f"追加: {pd.to_datetime(row['created_at']).strftime('%Y-%m-%d %H:%M')}")
+        # フラグ初期化
+        if "delete_id" not in st.session_state: st.session_state.delete_id = None
+        if "done_id" not in st.session_state: st.session_state.done_id = None
+        if "update_status" not in st.session_state: st.session_state.update_status = None
 
-                with cols[1]:
-                    st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
-
-                # ステータス
-                with cols[2]:
-                    key_status = f"status_{int(row['id'])}"
-                    if key_status not in st.session_state:
-                        st.session_state[key_status] = row["status"]
-                    new_status = st.selectbox("", ["未着手","作業中","完了"],
-                                              index=["未着手","作業中","完了"].index(st.session_state[key_status]),
-                                              key=key_status)
-                    if new_status != row["status"]:
-                        st.session_state.update_status = {"id": row["id"], "status": new_status}
-
-                # 完了ボタン
-                with cols[3]:
-                    if st.button("完了にする", key=f"done_{int(row['id'])}"):
-                        st.session_state.done_id = row["id"]
-
-                # 削除ボタン
-                with cols[4]:
-                    if st.button("削除", key=f"del_{int(row['id'])}"):
-                        st.session_state.delete_id = row["id"]
-
-            # ループ外でまとめて処理
-            # フラグ初期化
-            rerun_needed = False
+        # -----------------------------
+        # ループ内でのフラグ設定のみ
+        # -----------------------------
+        for idx, row in df.reset_index(drop=True).iterrows():
+            cols = st.columns([3,3,2,2,2])
             
-            # ループ内でフラグだけ立てる
-            for _, row in df.reset_index(drop=True).iterrows():
-                cols = st.columns([3,3,2,2,2])
-                with cols[3]:
-                    if st.button("完了にする", key=f"done_{int(row['id'])}"):
-                        st.session_state.done_id = row["id"]
-                        rerun_needed = True
-                with cols[4]:
-                    if st.button("削除", key=f"del_{int(row['id'])}"):
-                        st.session_state.delete_id = row["id"]
-                        rerun_needed = True
-            
-            # ループ外でまとめて処理
-            if st.session_state.done_id is not None:
-                for h in st.session_state.homework:
-                    if h["id"] == st.session_state.done_id:
-                        h["status"] = "完了"
-                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.session_state.done_id = None
-            
-            if st.session_state.delete_id is not None:
-                st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
-                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.session_state.delete_id = None
-            
-            # ループ外で一度だけ rerun
-            if rerun_needed:
-                st.experimental_rerun()
+            # 情報表示
+            with cols[0]:
+                st.markdown(f"**{row['subject']}**")
+                st.write(row['content'])
+                st.write(f"提出日: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
+                st.write(f"追加: {pd.to_datetime(row['created_at']).strftime('%Y-%m-%d %H:%M')}")
+        
+            with cols[1]:
+                st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
+        
+            # ステータス
+            with cols[2]:
+                key_status = f"status_{int(row['id'])}_{idx}"  # 行番号でユニーク化
+                if key_status not in st.session_state:
+                    st.session_state[key_status] = row["status"]
+                new_status = st.selectbox(
+                    "",
+                    options=["未着手","作業中","完了"],
+                    index=["未着手","作業中","完了"].index(st.session_state[key_status]),
+                    key=key_status
+                )
+                if new_status != row["status"]:
+                    st.session_state.update_status = {"id": row["id"], "status": new_status}
+        
+            # 完了ボタン
+            with cols[3]:
+                if st.button("完了にする", key=f"done_{int(row['id'])}_{idx}"):
+                    st.session_state.done_id = row["id"]
+        
+            # 削除ボタン
+            with cols[4]:
+                if st.button("削除", key=f"del_{int(row['id'])}_{idx}"):
+                    st.session_state.delete_id = row["id"]
 
+        # -----------------------------
+        # ループ外でまとめて処理
+        # -----------------------------
+        rerun_needed = False
+        
+        # 削除処理
+        if st.session_state.get("delete_id") is not None:
+            st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
+            drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+            st.success("削除しました。")
+            st.session_state.delete_id = None
+            rerun_needed = True
+        
+        # 完了処理
+        if st.session_state.get("done_id") is not None:
+            for h in st.session_state.homework:
+                if h["id"] == st.session_state.done_id:
+                    h["status"] = "完了"
+            drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+            st.success("完了にしました。")
+            st.session_state.done_id = None
+            rerun_needed = True
+        
+        # ステータス更新処理
+        if st.session_state.get("update_status") is not None:
+            for h in st.session_state.homework:
+                if h["id"] == st.session_state.update_status["id"]:
+                    h["status"] = st.session_state.update_status["status"]
+            drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+            st.success("ステータスを更新しました。")
+            st.session_state.update_status = None
+            rerun_needed = True
+        
+        if rerun_needed:
+            st.experimental_rerun()
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
