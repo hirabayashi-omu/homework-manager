@@ -23,6 +23,11 @@ TOKEN_FILE = ".streamlit/token.json"
 # Google Drive サービス取得（キャッシュ付き）
 # -----------------------------
 @st.cache_resource
+def get_drive_service_cached(creds):
+    """認証済み credentials から Drive service を返す"""
+    service = build("drive", "v3", credentials=creds)
+    return service
+
 def get_drive_service():
     creds = None
 
@@ -33,16 +38,12 @@ def get_drive_service():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # GitHub Secret からクライアント情報を取得
             client_config = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
-            flow = Flow.from_client_config(
-                client_config,
-                scopes=SCOPES,
-                redirect_uri="urn:ietf:wg:oauth:2.0:oob"
-            )
+            flow = Flow.from_client_config(client_config, scopes=SCOPES, redirect_uri="urn:ietf:wg:oauth:2.0:oob")
             auth_url, _ = flow.authorization_url(prompt="consent")
             st.info(f"まずこの URL にアクセスして認証コードを取得してください:\n{auth_url}")
 
+            # ウィジェットはキャッシュ外で呼ぶ
             code = st.text_input("認証コードを入力してください")
             if not code:
                 st.stop()
@@ -50,13 +51,11 @@ def get_drive_service():
             flow.fetch_token(code=code)
             creds = flow.credentials
 
-            # トークンを保存
             os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
             with open(TOKEN_FILE, "w", encoding="utf-8") as f:
                 f.write(creds.to_json())
 
-    return build("drive", "v3", credentials=creds)
-
+    return get_drive_service_cached(creds)
 # -----------------------------
 # Drive 操作関数（既存コードと同じ）
 # -----------------------------
@@ -288,6 +287,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
