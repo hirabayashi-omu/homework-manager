@@ -29,14 +29,14 @@ st.set_page_config(page_title="時間割＆宿題管理アプリ", layout="wide"
 def load_json(path, default):
     if os.path.exists(path):
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8-sig") as f:
                 return json.load(f)
         except Exception:
             return default
     return default
 
 def save_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8-sig") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def init_session_state():
@@ -132,7 +132,7 @@ with tabs[0]:
     st.markdown("---")
     st.markdown("#### エクスポート / インポート")
     if st.button("時間割をJSONでダウンロード"):
-        json_bytes = json.dumps(st.session_state.timetable, ensure_ascii=False, indent=2).encode("utf-8")
+        json_bytes = json.dumps(st.session_state.timetable, ensure_ascii=False, indent=2).encode("utf-8-sig")
         st.download_button("ダウンロード（JSON）", data=json_bytes, file_name="timetable.json", mime="application/json")
     uploaded_tt = st.file_uploader("時間割JSONをインポート", type=["json"])
     if uploaded_tt is not None:
@@ -331,8 +331,9 @@ with tabs[1]:
             export_df = export_df.astype(str)
             csv_buf = io.StringIO()
             export_df.to_csv(csv_buf, index=False)
-            st.download_button("宿題一覧をCSVでダウンロード", data=csv_buf.getvalue().encode("utf-8"), file_name="homework_list.csv", mime="text/csv")
+            st.download_button("宿題一覧をCSVでダウンロード", data=csv_buf.getvalue().encode("utf-8-sig"), file_name="homework_list.csv", mime="text/csv")
 
 # ---- フッター ----
 st.markdown("---")
 st.caption("※ このアプリはローカルに JSON を保存します。複数人で共有する場合は、共有場所にこのファイルを置くか、Streamlit Cloud等へデプロイしてURLを共有してください（本課題ではデプロイ不要）。")
+
