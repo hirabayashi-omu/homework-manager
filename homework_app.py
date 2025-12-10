@@ -82,64 +82,44 @@ def drive_load_json(filename, default):
 # -----------------------------
 # session_state 初期化
 # -----------------------------
-def init_session_state():
-    if "timetable" not in st.session_state:
-        default_tt = {"月":["","","",""], "火":["","","",""], "水":["","","",""], "木":["","","",""], "金":["","","",""]}
-        loaded_tt = drive_load_json(TIMETABLE_FILE, default_tt)
-        for d in loaded_tt:
-            if not isinstance(loaded_tt[d], list) or len(loaded_tt[d]) != 4:
-                loaded_tt[d] = [""]*4
-        st.session_state.timetable = loaded_tt
+if "timetable" not in st.session_state:
+    default_tt = {"月":[""]*4, "火":[""]*4, "水":[""]*4, "木":[""]*4, "金":[""]*4}
+    loaded_tt = drive_load_json(TIMETABLE_FILE, default_tt)
+    for d in loaded_tt:
+        if not isinstance(loaded_tt[d], list) or len(loaded_tt[d]) != 4:
+            loaded_tt[d] = [""]*4
+    st.session_state.timetable = loaded_tt
 
-    if "homework" not in st.session_state:
-        loaded_hw = drive_load_json(HOMEWORK_FILE, [])
-        if isinstance(loaded_hw, list):
-            for h in loaded_hw:
-                if "due" not in h or not h["due"]:
-                    h["due"] = date.today().isoformat()
-                if "created_at" not in h:
-                    h["created_at"] = datetime.now().isoformat()
-            st.session_state.homework = loaded_hw
-        else:
-            st.session_state.homework = []
-
-    if "subjects" not in st.session_state:
-        loaded_subs = drive_load_json(SUBJECT_FILE, [])
-        if isinstance(loaded_subs, list) and loaded_subs:
-            st.session_state.subjects = loaded_subs
-        else:
-            subs = set()
-            for vals in st.session_state.timetable.values():
-                for s in vals:
-                    if isinstance(s,str) and s.strip():
-                        subs.add(s.strip())
-            for c in ["数学","物理","化学","英語","日本史","情報","機械設計"]:
-                subs.add(c)
-            st.session_state.subjects = sorted(list(subs))
-            drive_save_json(SUBJECT_FILE, st.session_state.subjects)
-
-    for flag in ["new_hw_added", "delete_id", "done_id", "update_status"]:
-        if flag not in st.session_state:
-            st.session_state[flag] = False if "new_hw_added" in flag else None
-
-init_session_state()
+days = ["月","火","水","木","金"]
+period_labels = ["1/2限","3/4限","5/6限","7/8限"]
 
 # -----------------------------
 # Streamlit 設定
 # -----------------------------
-st.set_page_config(page_title="共有ドライブ版：時間割＆宿題管理", layout="wide")
-st.title("個人管理/クラス共有：時間割 & 宿題管理アプリ")
-tabs = st.tabs(["📝 時間割入力", "📚 宿題一覧"])
+st.set_page_config(page_title="Google Drive版：時間割管理", layout="wide")
+st.title("📝 Google Drive版：時間割管理")
 
-# =============================
-# タブ1: 時間割入力
-# =============================
+tabs = st.tabs(["📝 時間割入力"])
+
 with tabs[0]:
-    st.markdown("<h1 style='color:#1f77b4; font-size:36px;'>📝 時間割入力</h1>", unsafe_allow_html=True)
-    days = ["月","火","水","木","金"]
-    period_labels = ["1/2限","3/4限","5/6限","7/8限"]
+    st.header("時間割入力")
+
+    # JSON アップロード
+    uploaded_file = st.file_uploader("ここに JSON ファイルをドラッグ＆ドロップ", type=["json"])
+    if uploaded_file is not None:
+        try:
+            loaded_tt = json.load(uploaded_file)
+            for d in days:
+                if d not in loaded_tt or not isinstance(loaded_tt[d], list) or len(loaded_tt[d]) != 4:
+                    loaded_tt[d] = [""]*4
+            st.session_state.timetable = loaded_tt
+            st.success("時間割を読み込みました！")
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"JSON 読み込みエラー: {e}")
+
     col1, col2 = st.columns([3,1])
-    
+
     with col1:
         for d in days:
             with st.expander(f"{d}曜日"):
@@ -148,24 +128,17 @@ with tabs[0]:
                     key = f"tt_{d}_{i}"
                     if key not in st.session_state:
                         st.session_state[key] = st.session_state.timetable[d][i]
-                    st.text_input(f"{period_labels[i]}", key=key)
+                    st.session_state[key] = st.text_input(period_labels[i], value=st.session_state[key], key=key)
 
     with col2:
-        if st.button("時間割を保存"):
+        if st.button("時間割を Google Drive に保存"):
             for d in days:
                 st.session_state.timetable[d] = [st.session_state[f"tt_{d}_{i}"] for i in range(4)]
             drive_save_json(TIMETABLE_FILE, st.session_state.timetable)
-            subs = set(st.session_state.subjects)
-            for vals in st.session_state.timetable.values():
-                for s in vals:
-                    if isinstance(s,str) and s.strip():
-                        subs.add(s.strip())
-            st.session_state.subjects = sorted(list(subs))
-            drive_save_json(SUBJECT_FILE, st.session_state.subjects)
             st.success("時間割を Google Drive に保存しました！")
 
     st.markdown("---")
-    st.markdown("### プレビュー")
+    st.subheader("プレビュー")
     df_preview = pd.DataFrame({d: st.session_state.timetable[d] for d in days}, index=period_labels)
     st.dataframe(df_preview, use_container_width=True)
 
@@ -352,6 +325,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
