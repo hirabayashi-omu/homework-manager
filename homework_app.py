@@ -179,7 +179,7 @@ with tabs[0]:
             st.error(f"JSON 読み込みエラー: {e}")
 
 # =============================
-# タブ2: 宿題管理（修正版）
+# タブ2: 宿題管理（完全安全版）
 # =============================
 with tabs[1]:
     st.markdown("<h1 style='color:#ff7f0e; font-size:36px;'>📚 宿題管理</h1>", unsafe_allow_html=True)
@@ -219,7 +219,7 @@ with tabs[1]:
 
     # ---- 右: 一覧表示 ----
     with right:
-        hw_list = st.session_state.homework
+        hw_list = st.session_state.homework or []
         if hw_list:
             df = pd.DataFrame(hw_list)
             df["due_dt"] = pd.to_datetime(df["due"]).dt.date
@@ -257,7 +257,7 @@ with tabs[1]:
             for idx, row in df_filtered.iterrows():
                 cols = st.columns([3, 1, 1, 1])
                 cols[0].markdown(
-                    f"**{row['subject']}** - {row.get('content','（内容未記入）')}<br>"
+                    f"**{row.get('subject','（科目未設定）')}** - {row.get('content','（内容未記入）')}<br>"
                     f"提出日: {row.get('due_dt','')} / 提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}",
                     unsafe_allow_html=True
                 )
@@ -266,34 +266,36 @@ with tabs[1]:
                 new_status = cols[1].selectbox(
                     "",
                     ["未着手","作業中","完了"],
-                    index=["未着手","作業中","完了"].index(row["status"]),
-                    key=f"status_{row['id']}"
+                    index=["未着手","作業中","完了"].index(row.get("status","未着手")),
+                    key=f"status_{row.get('id', idx)}"
                 )
-                if new_status != row["status"]:
+                if new_status != row.get("status","未着手"):
                     for h in st.session_state.homework:
-                        if h["id"] == row["id"]:
+                        if h.get("id") == row.get("id"):
                             h["status"] = new_status
                     rerun_needed = True
 
                 # 完了ボタン
-                if cols[2].button("完了", key=f"done_{row['id']}"):
+                if cols[2].button("完了", key=f"done_{row.get('id', idx)}"):
                     for h in st.session_state.homework:
-                        if h["id"] == row["id"]:
+                        if h.get("id") == row.get("id"):
                             h["status"] = "完了"
                     rerun_needed = True
 
                 # 削除ボタン
-                if cols[3].button("削除", key=f"del_{row['id']}"):
-                    st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
+                if cols[3].button("削除", key=f"del_{row.get('id', idx)}"):
+                    st.session_state.homework = [h for h in st.session_state.homework if h.get("id") != row.get("id")]
                     rerun_needed = True
 
-            # ループ外でまとめて保存＆rerun
             if rerun_needed:
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.experimental_rerun()
+        else:
+            st.info("登録された宿題はまだありません。")
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
