@@ -97,6 +97,7 @@ if "homework" not in st.session_state:
                     h["created_at"] = datetime.now().isoformat()
                 safe_hw.append(h)
     st.session_state.homework = safe_hw
+    
 
     if "subjects" not in st.session_state:
         loaded_subs = drive_load_json(SUBJECT_FILE, [])
@@ -284,6 +285,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
