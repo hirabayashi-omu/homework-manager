@@ -106,7 +106,7 @@ def drive_load_json(filename, default):
 def drive_save_json(filename, data):
     """
     JSON データを Google Drive に保存（既存なら update、新規なら create）。
-    フォルダ権限や存在チェックを強化。
+    Shared Drive 対応。
     """
     try:
         file_id = drive_find_file(filename)
@@ -115,21 +115,19 @@ def drive_save_json(filename, data):
 
         if file_id:
             # 既存ファイルを更新
-            service.files().update(fileId=file_id, media_body=media).execute()
+            service.files().update(
+                fileId=file_id,
+                media_body=media,
+                supportsAllDrives=True
+            ).execute()
         else:
-            # 新規作成時はフォルダ存在チェック
-            folder_exists = True
-            try:
-                service.files().get(fileId=FOLDER_ID, fields="id").execute()
-            except Exception:
-                folder_exists = False
-
-            if not folder_exists:
-                st.error(f"フォルダID {FOLDER_ID} が存在しないかアクセス権限がありません。")
-                return
-
+            # 新規作成
             body = {"name": filename, "parents": [FOLDER_ID]}
-            service.files().create(body=body, media_body=media).execute()
+            service.files().create(
+                body=body,
+                media_body=media,
+                supportsAllDrives=True
+            ).execute()
     except Exception as e:
         st.error(f"Drive 保存エラー: {e}")
 
@@ -396,6 +394,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
