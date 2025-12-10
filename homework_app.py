@@ -367,13 +367,13 @@ with tabs[1]:
                     if st.button(f"削除_{int(row['id'])}", key=f"del_{int(row['id'])}"):
                         st.session_state.delete_id = row["id"]
 
-# ループ外で削除処理
-if st.session_state.delete_id is not None:
-    st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
-    drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-    st.success("削除しました。")
-    st.session_state.delete_id = None
-    st.experimental_rerun()
+            # ループ外で削除処理
+            if st.session_state.delete_id is not None:
+                st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
+                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+                st.success("削除しました。")
+                st.session_state.delete_id = None
+                st.experimental_rerun()
 
 
 
@@ -388,5 +388,6 @@ if st.session_state.delete_id is not None:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
