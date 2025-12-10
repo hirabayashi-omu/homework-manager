@@ -234,39 +234,47 @@ with tabs[0]:
             st.error(f"読み込みエラー: {e}")
 
 # -----------------------------
-# タブ2: 宿題一覧
+# タブ2: 宿題一覧（rerun 安全版）
 # -----------------------------
 with tabs[1]:
     st.markdown(
         "<h1 style='color:#ff7f0e; font-size:36px; font-weight:bold;'>📚 宿題管理　</h1>",
         unsafe_allow_html=True
     )
+
     left, right = st.columns([1,2])
 
     # 左: 登録フォーム
     with left:
         st.subheader("宿題の登録")
-        
-        # 入力用 session_state 初期化
-        for k, v in [("input_subject",""), ("input_new_subject",""), ("input_content",""),
-                     ("input_due", date.today()), ("input_status","未着手"),
-                     ("input_submit_method","Teams"), ("input_submit_method_detail","")]:
-            if k not in st.session_state:
-                st.session_state[k] = v
 
-        subject = st.selectbox("科目", options=st.session_state.subjects,
-                               index=0 if st.session_state.subjects else None,
-                               key="input_subject")
-        new_subject = st.text_input("（新しい科目を追加する場合）", value=st.session_state.input_new_subject, key="input_new_subject")
-        content = st.text_area("宿題内容", value=st.session_state.input_content, height=200, key="input_content")
+        # 入力用 session_state 初期化
+        for key, default in [
+            ("input_subject", ""), ("input_new_subject",""), ("input_content",""),
+            ("input_due", date.today()), ("input_status","未着手"),
+            ("input_submit_method","Teams"), ("input_submit_method_detail","")
+        ]:
+            if key not in st.session_state:
+                st.session_state[key] = default
+
+        subject = st.selectbox(
+            "科目",
+            options=st.session_state.subjects,
+            index=0 if st.session_state.subjects else None,
+            key="input_subject"
+        )
+        new_subject = st.text_input("（新しい科目を追加する場合）", key="input_new_subject")
+        content = st.text_area("宿題内容", height=200, key="input_content")
         due = st.date_input("提出日", value=st.session_state.input_due, key="input_due")
-        status = st.selectbox("ステータス", options=["未着手","作業中","完了"],
-                              index=["未着手","作業中","完了"].index(st.session_state.input_status), key="input_status")
+        status = st.selectbox("ステータス", ["未着手","作業中","完了"], index=["未着手","作業中","完了"].index(st.session_state.input_status), key="input_status")
         st.markdown("提出方法")
-        submit_method = st.radio("", options=["Teams","Google Classroom","手渡し","その他"],
-                                 index=["Teams","Google Classroom","手渡し","その他"].index(st.session_state.input_submit_method),
-                                 key="input_submit_method")
-        submit_method_detail = st.text_input("その他（具体）", value=st.session_state.input_submit_method_detail, key="input_submit_method_detail") if submit_method=="その他" else ""
+        submit_method = st.radio(
+            "",
+            ["Teams","Google Classroom","手渡し","その他"],
+            index=["Teams","Google Classroom","手渡し","その他"].index(st.session_state.input_submit_method),
+            key="input_submit_method"
+        )
+        submit_method_detail = st.text_input("その他（具体）", key="input_submit_method_detail") if submit_method=="その他" else ""
 
         if st.button("宿題を追加"):
             use_subject = new_subject.strip() if new_subject.strip() else subject
@@ -288,7 +296,7 @@ with tabs[1]:
             st.session_state.homework.append(hw)
             drive_save_json(HOMEWORK_FILE, st.session_state.homework)
             st.success("宿題を追加しました。")
-            st.experimental_rerun()  # 追加後は rerun して一覧更新
+            st.experimental_rerun()  # 追加後に rerun
 
     # 右: 一覧表示と操作
     with right:
@@ -296,13 +304,14 @@ with tabs[1]:
         if not hw_list:
             st.info("登録された宿題はありません。")
         else:
+            # ローカル変数 df に変換（session_state に入れない）
             df = pd.DataFrame(hw_list)
             df["due_dt"] = pd.to_datetime(df["due"]).dt.date
             df["created_at_dt"] = pd.to_datetime(df["created_at"])
-            today_dt = date.today()
+            df["days_left"] = (df["due_dt"] - date.today()).apply(lambda x: x.days)
 
             # フィルタリング
-            filter_status = st.selectbox("ステータスで絞り込む", options=["全て","未着手","作業中","完了"], index=0)
+            filter_status = st.selectbox("ステータスで絞り込む", ["全て","未着手","作業中","完了"], index=0)
             keyword = st.text_input("キーワード検索（科目・内容）", value="")
             if filter_status != "全て":
                 df = df[df["status"] == filter_status]
@@ -310,7 +319,6 @@ with tabs[1]:
                 df = df[df["subject"].str.contains(keyword, case=False, na=False) |
                         df["content"].str.contains(keyword, case=False, na=False)]
             df = df.sort_values(["due_dt","created_at_dt"], ascending=[True, False])
-            df["days_left"] = (df["due_dt"] - today_dt).apply(lambda x: x.days)
 
             st.markdown(f"登録件数: **{len(df)} 件**")
             upcoming = df[df["days_left"] <= 3]
@@ -318,56 +326,54 @@ with tabs[1]:
                 st.warning(f"締切が3日以内の宿題が **{len(upcoming)} 件** あります。")
                 st.table(upcoming[["subject","content","due_dt","status","submit_method"]])
 
-            # フラグ初期化
-            for k in ["delete_id","done_id","update_status"]:
-                if k not in st.session_state:
-                    st.session_state[k] = None
+            # ループ内でフラグだけセット
+            if "delete_id" not in st.session_state: st.session_state.delete_id = None
+            if "done_id" not in st.session_state: st.session_state.done_id = None
+            if "update_status" not in st.session_state: st.session_state.update_status = None
 
-            # -----------------------------
-            # ループ内でフラグセット
-            # -----------------------------
             for _, row in df.reset_index(drop=True).iterrows():
                 cols = st.columns([3,3,2,2,2])
-
+                # 情報表示
                 with cols[0]:
                     st.markdown(f"**{row['subject']}**")
                     st.write(row['content'])
                     st.write(f"提出日: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
                     st.write(f"追加: {pd.to_datetime(row['created_at']).strftime('%Y-%m-%d %H:%M')}")
+
                 with cols[1]:
                     st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
+
+                # ステータス
                 with cols[2]:
                     key_status = f"status_{int(row['id'])}"
                     if key_status not in st.session_state:
                         st.session_state[key_status] = row["status"]
-                    new_status = st.selectbox(
-                        "",
-                        options=["未着手","作業中","完了"],
-                        index=["未着手","作業中","完了"].index(st.session_state[key_status]),
-                        key=key_status
-                    )
+                    new_status = st.selectbox("", ["未着手","作業中","完了"],
+                                              index=["未着手","作業中","完了"].index(st.session_state[key_status]),
+                                              key=key_status)
                     if new_status != row["status"]:
                         st.session_state.update_status = {"id": row["id"], "status": new_status}
+
+                # 完了ボタン
                 with cols[3]:
                     if st.button("完了にする", key=f"done_{int(row['id'])}"):
                         st.session_state.done_id = row["id"]
+
+                # 削除ボタン
                 with cols[4]:
                     if st.button("削除", key=f"del_{int(row['id'])}"):
                         st.session_state.delete_id = row["id"]
 
-            # -----------------------------
-            # ループ外でまとめて処理
-            # -----------------------------
             # ループ外でまとめて処理
             rerun_needed = False
-            
+
             if st.session_state.delete_id is not None:
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("削除しました。")
                 st.session_state.delete_id = None
                 rerun_needed = True
-            
+
             if st.session_state.done_id is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.done_id:
@@ -376,7 +382,7 @@ with tabs[1]:
                 st.success("完了にしました。")
                 st.session_state.done_id = None
                 rerun_needed = True
-            
+
             if st.session_state.update_status is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.update_status["id"]:
@@ -385,22 +391,14 @@ with tabs[1]:
                 st.success("ステータスを更新しました。")
                 st.session_state.update_status = None
                 rerun_needed = True
-            
-            # **重要**: rerun は DataFrame や UI を参照せず、session_state 更新後にだけ呼ぶ
+
             if rerun_needed:
                 st.experimental_rerun()
 
-            # CSV ダウンロード
-            st.markdown("---")
-            st.markdown("### エクスポート")
-            export_df = df.drop(columns=["due_dt","created_at_dt","days_left"], errors="ignore").astype(str)
-            csv_utf8 = export_df.to_csv(index=False, encoding="utf-8-sig")
-            st.download_button("CSV (UTF-8 BOM)", data=csv_utf8, file_name="homework_utf8bom.csv", mime="text/csv")
-            csv_cp932 = export_df.to_csv(index=False).encode("cp932", errors="replace")
-            st.download_button("CSV (Shift_JIS / Excel)", data=csv_cp932, file_name="homework_shiftjis.csv", mime="text/csv")
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
