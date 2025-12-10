@@ -97,26 +97,11 @@ def init_session_state():
 
 init_session_state()
 
-# -------------------------
-# 環境注意表示（Streamlit Cloud 等でローカルファイルが永続化されない場合の注意）
-# -------------------------
-def show_persistence_notice():
-    # heuristic: if running on Streamlit Cloud, files may not persist between deploys
-    # We'll always show a small info message explaining differences.
-    st.info(
-        "注意: このアプリはローカルに JSON ファイルを保存します。"
-        "もし Streamlit Cloud や一部の PaaS で動かしている場合、"
-        "その環境の仕様でファイルが永続化されないことがあります。\n\n"
-        "ローカルで実行する場合: `streamlit run homework_manager.py` を使ってください。\n"
-        "クラウドで永続化したい場合: GitHub / Google Drive / Supabase 等に保存する実装に変更してください。"
-    )
-
-show_persistence_notice()
 
 # -------------------------
 # UI
 # -------------------------
-st.title("時間割 & 宿題管理アプリ（永続化版）")
+st.title("時間割 & 宿題管理アプリ）")
 tabs = st.tabs(["時間割入力", "宿題一覧"])
 
 # ---- タブ: 時間割入力 ----
