@@ -293,9 +293,15 @@ if st.session_state.get("update_status") is not None:
     st.session_state.update_status = None
     rerun_needed = True
 
+# rerun を try/except で保護
 if rerun_needed:
-    st.experimental_rerun()
+    try:
+        st.experimental_rerun()
+    except Exception:
+        pass  # rerun エラーを無視
+
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
