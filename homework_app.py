@@ -249,7 +249,9 @@ with right:
         st.markdown(f"登録件数: **{len(df)} 件**")
         upcoming = df[df["days_left"] <= 3]
         if not upcoming.empty:
-            st.warning(f"締切が3日以内の宿題が **{len(upcoming)} 件** あります。")
+            st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
+        else:
+            st.info("直近の宿題はありません。")
 
         # 直近の宿題のみ抽出（締切3日以内）
         today_dt = date.today()
@@ -266,9 +268,7 @@ with right:
             # days_left は非表示にして表示
             st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
         
-            st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
-        else:
-            st.info("直近の宿題はありません。")
+
 
         # コンパクト表示: テーブル＋操作ボタン
         for idx, row in df.reset_index(drop=True).iterrows():
@@ -331,6 +331,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
