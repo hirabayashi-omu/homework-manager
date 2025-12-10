@@ -362,11 +362,18 @@ with tabs[1]:
             rerun_needed = False
             
             if st.session_state.delete_id is not None:
+                # データ更新
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.success("削除しました。")
+                
+                # フラグを先にリセット
                 st.session_state.delete_id = None
-                rerun_needed = True
+                
+                # メッセージは rerun 後に表示する
+                st.success("削除しました。")
+                
+                # 再描画
+                st.experimental_rerun()
             
             if st.session_state.done_id is not None:
                 for h in st.session_state.homework:
@@ -401,6 +408,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
