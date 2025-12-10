@@ -241,14 +241,17 @@ with right:
         
         # 表示用データに days_left 追加
         display_df = df[["subject","content","due_dt","status","submit_method","days_left"]].copy()
+        
+        # 条件付きハイライト関数
+        def highlight_due(row):
+            return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
+        
+        # 表示用データ
+        display_df = df[["subject","content","due_dt","status","submit_method","days_left"]].copy()
         st.dataframe(
             display_df.style.apply(highlight_due, axis=1).hide_columns(['days_left']),
             use_container_width=True
         )
-        
-        # 条件付きハイライト
-        def highlight_due(row):
-            return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
         
 
         st.markdown(f"登録件数: **{len(df)} 件**")
@@ -317,6 +320,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
