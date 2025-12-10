@@ -243,7 +243,7 @@ with tabs[1]:
         content = st.text_area(
             "宿題内容",
             placeholder="例: レポート 3ページ、問題集 p10-15",
-            height=100  # 高さを倍に
+            height=200  # 高さを倍に
         )
         due = st.date_input("提出日", value=date.today())
         status = st.selectbox("ステータス", options=["未着手","作業中","完了"], index=0)
@@ -362,6 +362,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
