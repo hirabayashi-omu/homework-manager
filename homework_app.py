@@ -253,21 +253,37 @@ with right:
                 df_filtered["content"].str.contains(keyword, case=False, na=False)
             ]
 
-        # --- 直近3日以内ハイライト ---
+        # --- 直近3日以内ハイライト表示 ---
         df_recent = df_filtered[df_filtered["days_left"] <= 3]
         if not df_recent.empty:
-            st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
+            st.markdown(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
+            def highlight_due(row):
+                return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
+            styled = df_recent[["subject","content","due_dt","status","submit_method","days_left"]].style.apply(highlight_due, axis=1)
+            st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
 
-        # --- 宿題一覧表示＋操作 ---
+        # --- 個別宿題一覧＋操作 ---
         for idx, row in df_filtered.iterrows():
             cols = st.columns([3,1,1,1])
+            cols[0].markdown(
+                f"**{row['subject']}** - {row['content']}<br>"
+                f"提出日: {row['due_dt']} / 提出方法: {row['submit_method']} {row.get('submit_method_detail','')}",
+                unsafe_allow_html=True
+            )
             # ステータス変更
             new_status = cols[1].selectbox(
                 "",
                 ["未着手","作業中","完了"],
                 index=["未着手","作業中","完了"].index(row["status"]),
-                key=f"status_{row['id']}_{idx}"  # ←行番号も追加して一意に
+                key=f"status_{row['id']}_{idx}"
             )
+            if new_status != row["status"]:
+                for h in st.session_state.homework:
+                    if h["id"] == row["id"]:
+                        h["status"] = new_status
+                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+                st.experimental_rerun()
+
             # 完了ボタン
             if cols[2].button("完了", key=f"done_{row['id']}_{idx}"):
                 for h in st.session_state.homework:
@@ -275,6 +291,7 @@ with right:
                         h["status"] = "完了"
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.experimental_rerun()
+
             # 削除ボタン
             if cols[3].button("削除", key=f"del_{row['id']}_{idx}"):
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
@@ -283,6 +300,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
