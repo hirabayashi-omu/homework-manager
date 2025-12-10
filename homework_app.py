@@ -49,7 +49,15 @@ def init_session_state():
             "金": ["", "", "", ""],
         })
     if "homework" not in st.session_state:
-        st.session_state.homework = load_json(HOMEWORK_FILE, default=[])
+        loaded = load_json(HOMEWORK_FILE, default=[])
+        # --- ここが追加の安全化パッチ ---
+        if not isinstance(loaded, list):
+            loaded = []
+        else:
+            # list 内に文字列など不正データが混ざっていたら除外
+            loaded = [x for x in loaded if isinstance(x, dict)]
+        # -----------------------------------
+        st.session_state.homework = loaded
     if "subjects" not in st.session_state:
         # 科目一覧は時間割の値から自動生成（空文字は除外）
         subs = set()
@@ -204,7 +212,7 @@ with tabs[1]:
                 save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("宿題を追加しました。")
                 # clear inputs (re-run will show cleared)
-                st.experimental_rerun()
+                st.rerun()
 
         st.markdown("#### クイック操作")
         if st.button("未着手のみ表示（右側フィルタをセット）"):
