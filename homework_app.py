@@ -174,15 +174,12 @@ with tabs[0]:
         type=["json"]
     )
     
-    days = ["月","火","水","木","金"]
-    period_labels = ["1/2限","3/4限","5/6限","7/8限"]
-    
-    # ファイル読み込み
     if uploaded_file is not None:
         try:
             loaded_tt = json.load(uploaded_file)
             st.session_state.timetable = loaded_tt
             st.success("時間割を読み込みました！")
+            st.experimental_rerun()  # ← ここでページを再描画
         except Exception as e:
             st.error(f"JSON 読み込みエラー: {e}")
 
@@ -355,6 +352,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
