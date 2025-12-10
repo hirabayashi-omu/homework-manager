@@ -22,38 +22,40 @@ CLIENT_CONFIG = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
 REDIRECT_URI = "https://homework-manager-jdk5mdhfcjnz2hsywilq5q.streamlit.app/.auth/callback"
 
 # -----------------------------
-# Google Drive サービス取得
+# Drive サービス取得
 # -----------------------------
-@st.cache_resource
-def get_drive_service_cached(creds):
-    return build("drive", "v3", credentials=creds)
-
 def get_drive_service():
     creds = None
     if os.path.exists(TOKEN_FILE):
         creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
+            # Flow 作成
             flow = Flow.from_client_config(
                 CLIENT_CONFIG,
                 scopes=SCOPES,
                 redirect_uri=REDIRECT_URI
             )
             auth_url, _ = flow.authorization_url(prompt="consent")
-            st.markdown(f"[ここをクリックして Google にログイン]({auth_url})", unsafe_allow_html=True)
+            st.markdown(
+                "まずこのリンクで Google にログインして認証コードを取得してください:<br>"
+                f"[Google認証へ]({auth_url})",
+                unsafe_allow_html=True
+            )
             code = st.text_input("認証コードを入力してください")
             if not code:
                 st.stop()
+            # コードからトークン取得
             flow.fetch_token(code=code)
             creds = flow.credentials
             os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
             with open(TOKEN_FILE, "w", encoding="utf-8") as f:
                 f.write(creds.to_json())
-
-    return get_drive_service_cached(creds)
+            st.success("認証完了！ ページを再読み込みしてください。")
+            st.stop()
+    return build("drive", "v3", credentials=creds)
 
 # -----------------------------
 # Drive 操作関数
@@ -284,6 +286,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
