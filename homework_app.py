@@ -9,7 +9,7 @@ from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 # -----------------------------
 # Google Drive 設定
 # -----------------------------
-FOLDER_ID = "共有ドライブのフォルダID"  # ここは共有ドライブ上のフォルダIDに変更
+FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"  # ここは共有ドライブ上のフォルダIDに変更
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
@@ -283,6 +283,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
