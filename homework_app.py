@@ -241,6 +241,10 @@ with right:
         
         # 表示用データに days_left 追加
         display_df = df[["subject","content","due_dt","status","submit_method","days_left"]].copy()
+        st.dataframe(
+            display_df.style.apply(highlight_due, axis=1).hide_columns(['days_left']),
+            use_container_width=True
+        )
         
         # 条件付きハイライト
         def highlight_due(row):
@@ -313,6 +317,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
