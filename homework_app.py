@@ -374,6 +374,12 @@ with tabs[1]:
             # -----------------------------
             rerun_needed = False
 
+            # 新規宿題追加後に rerun
+            if st.session_state.get("new_hw_added"):
+                st.session_state.new_hw_added = False
+                st.experimental_rerun()
+
+            
             # 削除処理
             if st.session_state.get("delete_id") is not None:
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
@@ -407,6 +413,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
