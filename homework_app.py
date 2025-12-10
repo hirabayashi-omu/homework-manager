@@ -9,7 +9,7 @@ from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 # -----------------------------
 # Google Drive 設定
 # -----------------------------
-FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"
+FOLDER_ID = "共有ドライブのフォルダID"  # ここは共有ドライブ上のフォルダIDに変更
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
@@ -26,9 +26,6 @@ def get_drive_service():
     service = build("drive", "v3", credentials=creds)
     return service
 
-# -----------------------------
-# 共有ドライブ対応の保存/読み込み
-# -----------------------------
 def drive_find_file(filename, folder_id=FOLDER_ID):
     service = get_drive_service()
     query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
@@ -81,12 +78,10 @@ def drive_load_json(filename, default, folder_id=FOLDER_ID):
     except Exception:
         return default
 
-
 # -----------------------------
 # session_state 初期化
 # -----------------------------
 def init_session_state():
-    # --- 時間割 ---
     if "timetable" not in st.session_state:
         default_tt = {"月":["","","",""], "火":["","","",""], "水":["","","",""], "木":["","","",""], "金":["","","",""]}
         loaded_tt = drive_load_json(TIMETABLE_FILE, default_tt)
@@ -95,29 +90,18 @@ def init_session_state():
                 loaded_tt[d] = [""]*4
         st.session_state.timetable = loaded_tt
 
-    # --- 宿題 ---
     if "homework" not in st.session_state:
         loaded_hw = drive_load_json(HOMEWORK_FILE, [])
-        safe_hw = []
         if isinstance(loaded_hw, list):
             for h in loaded_hw:
-                if not isinstance(h, dict):
-                    continue  # dictでない場合はスキップ
-                # due の補正
-                due_val = h.get("due")
-                if not isinstance(due_val, str) or not due_val.strip():
+                if "due" not in h or not h["due"]:
                     h["due"] = date.today().isoformat()
-                # created_at の補正
-                created_val = h.get("created_at")
-                if not isinstance(created_val, str) or not created_val.strip():
+                if "created_at" not in h:
                     h["created_at"] = datetime.now().isoformat()
-                # status 補正
-                if "status" not in h or h["status"] not in ["未着手","作業中","完了"]:
-                    h["status"] = "未着手"
-                safe_hw.append(h)
-        st.session_state.homework = safe_hw
+            st.session_state.homework = loaded_hw
+        else:
+            st.session_state.homework = []
 
-    # --- 科目 ---
     if "subjects" not in st.session_state:
         loaded_subs = drive_load_json(SUBJECT_FILE, [])
         if isinstance(loaded_subs, list) and loaded_subs:
@@ -132,12 +116,6 @@ def init_session_state():
                 subs.add(c)
             st.session_state.subjects = sorted(list(subs))
             drive_save_json(SUBJECT_FILE, st.session_state.subjects)
-
-    # --- その他フラグ ---
-    for flag in ["new_hw_added", "delete_id", "done_id", "update_status"]:
-        if flag not in st.session_state:
-            st.session_state[flag] = None
-
 
 init_session_state()
 
@@ -303,6 +281,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
