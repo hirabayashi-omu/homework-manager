@@ -1,7 +1,7 @@
 # homework_manager_drive_full.py
 # -*- coding: utf-8 -*-
 """
-Google Drive 永続化版: 時間割 & 宿題管理アプリ
+個人管理/クラス共有: 時間割 & 宿題管理アプリ
 Streamlit Cloud 対応版。JSON は Drive に保存。
 """
 
@@ -137,7 +137,7 @@ def drive_save_json(filename, data):
 # -----------------------------
 # Streamlit 設定
 # -----------------------------
-st.set_page_config(page_title="Drive永続化版：時間割＆宿題管理", layout="wide")
+st.set_page_config(page_title="個人管理/クラス共有：時間割＆宿題管理", layout="wide")
 
 # -----------------------------
 # session_state 初期化
@@ -396,6 +396,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
