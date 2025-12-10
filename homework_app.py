@@ -148,7 +148,11 @@ tabs = st.tabs([
 # タブ1: 時間割入力
 # -----------------------------
 with tabs[0]:
-    st.header("時間割入力（Google Drive 保存）")
+    st.markdown(
+        "<h1 style='color:#1f77b4; font-size:36px; font-weight:bold;'>📝 時間割入力（Google Drive 保存）</h1>",
+        unsafe_allow_html=True
+    )
+
     days = ["月","火","水","木","金"]
     period_labels = ["1/2限","3/4限","5/6限","7/8限"]
     col1, col2 = st.columns([3,1])
@@ -224,8 +228,10 @@ with tabs[0]:
 # タブ2: 宿題一覧
 # -----------------------------
 with tabs[1]:
-    st.header("宿題管理（Google Drive 永続化）")
-    left, right = st.columns([1,2])
+    st.markdown(
+        "<h1 style='color:#ff7f0e; font-size:36px; font-weight:bold;'>📚 宿題管理（Google Drive 永続化）</h1>",
+        unsafe_allow_html=True
+    )
 
     # 左: 登録フォーム
     with left:
@@ -350,6 +356,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
