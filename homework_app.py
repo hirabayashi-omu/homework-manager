@@ -280,22 +280,21 @@ with right:
                     if h["id"] == row["id"]:
                         h["status"] = new_status
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.experimental_rerun()
+                # st.experimental_rerun() は削除
 
             if cols[2].button("完了", key=f"done_{row['id']}"):
                 for h in st.session_state.homework:
                     if h["id"] == row["id"]:
                         h["status"] = "完了"
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.experimental_rerun()
 
             if cols[3].button("削除", key=f"del_{row['id']}"):
                 st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.experimental_rerun()
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
