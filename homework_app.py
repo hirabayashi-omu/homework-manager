@@ -246,42 +246,47 @@ with tabs[1]:
     # 左: 登録フォーム
     with left:
         st.subheader("宿題の登録")
-        subject = st.selectbox("科目", options=st.session_state.subjects, index=0 if st.session_state.subjects else None)
-        new_subject = st.text_input("（新しい科目を追加する場合）", value="")
-        content = st.text_area("宿題内容", placeholder="例: レポート 3ページ、問題集 p10-15", height=200)
-        due = st.date_input("提出日", value=date.today())
-        status = st.selectbox("ステータス", options=["未着手","作業中","完了"], index=0)
+    
+        if "input_subject" not in st.session_state: st.session_state.input_subject = ""
+        if "input_new_subject" not in st.session_state: st.session_state.input_new_subject = ""
+        if "input_content" not in st.session_state: st.session_state.input_content = ""
+        if "input_due" not in st.session_state: st.session_state.input_due = date.today()
+        if "input_status" not in st.session_state: st.session_state.input_status = "未着手"
+        if "input_submit_method" not in st.session_state: st.session_state.input_submit_method = "Teams"
+        if "input_submit_method_detail" not in st.session_state: st.session_state.input_submit_method_detail = ""
+    
+        subject = st.selectbox("科目", options=st.session_state.subjects,
+                               index=0 if st.session_state.subjects else None,
+                               key="input_subject")
+        new_subject = st.text_input("（新しい科目を追加する場合）", value=st.session_state.input_new_subject, key="input_new_subject")
+        content = st.text_area("宿題内容", value=st.session_state.input_content, height=200, key="input_content")
+        due = st.date_input("提出日", value=st.session_state.input_due, key="input_due")
+        status = st.selectbox("ステータス", options=["未着手","作業中","完了"], index=["未着手","作業中","完了"].index(st.session_state.input_status), key="input_status")
         st.markdown("提出方法")
-        submit_method = st.radio("", options=["Teams","Google Classroom","手渡し","その他"], index=0)
-        submit_method_detail = ""
-        if submit_method == "その他":
-            submit_method_detail = st.text_input("その他（具体）", value="")
-
+        submit_method = st.radio("", options=["Teams","Google Classroom","手渡し","その他"], index=["Teams","Google Classroom","手渡し","その他"].index(st.session_state.input_submit_method), key="input_submit_method")
+        submit_method_detail = st.text_input("その他（具体）", value=st.session_state.input_submit_method_detail, key="input_submit_method_detail") if submit_method=="その他" else ""
+    
         if st.button("宿題を追加"):
-            if not (subject or new_subject.strip()):
-                st.error("科目を選択するか、新しい科目を入力してください。")
-            elif not content.strip():
-                st.error("宿題内容を入力してください。")
-            else:
-                use_subject = new_subject.strip() if new_subject.strip() else subject
-                if use_subject not in st.session_state.subjects:
-                    st.session_state.subjects.append(use_subject)
-                    st.session_state.subjects.sort()
-                    drive_save_json(SUBJECT_FILE, st.session_state.subjects)
+            use_subject = new_subject.strip() if new_subject.strip() else subject
+            if use_subject not in st.session_state.subjects:
+                st.session_state.subjects.append(use_subject)
+                st.session_state.subjects.sort()
+                drive_save_json(SUBJECT_FILE, st.session_state.subjects)
+    
+            hw = {
+                "id": int(datetime.now().timestamp()*1000),
+                "subject": use_subject,
+                "content": content.strip(),
+                "due": due.isoformat(),
+                "status": status,
+                "submit_method": submit_method,
+                "submit_method_detail": submit_method_detail,
+                "created_at": datetime.now().isoformat()
+            }
+            st.session_state.homework.append(hw)
+            drive_save_json(HOMEWORK_FILE, st.session_state.homework)
+            st.success("宿題を追加しました。")
 
-                hw = {
-                    "id": int(datetime.now().timestamp()*1000),
-                    "subject": use_subject,
-                    "content": content.strip(),
-                    "due": due.isoformat(),
-                    "status": status,
-                    "submit_method": submit_method,
-                    "submit_method_detail": submit_method_detail,
-                    "created_at": datetime.now().isoformat()
-                }
-                st.session_state.homework.append(hw)
-                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.success("宿題を追加しました。")
 
     # 右: 一覧表示と操作
     with right:
@@ -381,4 +386,5 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
