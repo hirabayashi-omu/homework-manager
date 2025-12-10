@@ -365,39 +365,42 @@ with tabs[1]:
                         st.session_state.delete_id = row["id"]
 
             # ループ外でまとめて処理
+            # フラグ初期化
             rerun_needed = False
-
-            if st.session_state.delete_id is not None:
-                st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
-                drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.success("削除しました。")
-                st.session_state.delete_id = None
-                rerun_needed = True
-
+            
+            # ループ内でフラグだけ立てる
+            for _, row in df.reset_index(drop=True).iterrows():
+                cols = st.columns([3,3,2,2,2])
+                with cols[3]:
+                    if st.button("完了にする", key=f"done_{int(row['id'])}"):
+                        st.session_state.done_id = row["id"]
+                        rerun_needed = True
+                with cols[4]:
+                    if st.button("削除", key=f"del_{int(row['id'])}"):
+                        st.session_state.delete_id = row["id"]
+                        rerun_needed = True
+            
+            # ループ外でまとめて処理
             if st.session_state.done_id is not None:
                 for h in st.session_state.homework:
                     if h["id"] == st.session_state.done_id:
                         h["status"] = "完了"
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.success("完了にしました。")
                 st.session_state.done_id = None
-                rerun_needed = True
-
-            if st.session_state.update_status is not None:
-                for h in st.session_state.homework:
-                    if h["id"] == st.session_state.update_status["id"]:
-                        h["status"] = st.session_state.update_status["status"]
+            
+            if st.session_state.delete_id is not None:
+                st.session_state.homework = [h for h in st.session_state.homework if h["id"] != st.session_state.delete_id]
                 drive_save_json(HOMEWORK_FILE, st.session_state.homework)
-                st.success("ステータスを更新しました。")
-                st.session_state.update_status = None
-                rerun_needed = True
-
+                st.session_state.delete_id = None
+            
+            # ループ外で一度だけ rerun
             if rerun_needed:
                 st.experimental_rerun()
 
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
