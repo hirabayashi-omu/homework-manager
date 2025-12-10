@@ -18,13 +18,18 @@ SUBJECT_FILE = "subjects.json"
 # Drive API 接続
 # -----------------------------
 @st.cache_resource
-def get_drive_service():
-    creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
-    creds = service_account.Credentials.from_service_account_info(
-        creds_info, scopes=["https://www.googleapis.com/auth/drive"]
-    )
-    service = build("drive", "v3", credentials=creds)
-    return service
+def drive_find_file(filename, folder_id=FOLDER_ID):
+    service = get_drive_service()
+    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+    results = service.files().list(
+        q=query,
+        spaces="drive",
+        fields="files(id, name)",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute()  # ここで dict が返る
+    files = results.get("files", [])  # dict から files リストを取得
+    return files[0]["id"] if files else None
 
 def drive_find_file(filename, folder_id=FOLDER_ID):
     service = get_drive_service()
@@ -283,6 +288,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
