@@ -25,22 +25,26 @@ SUBJECT_FILE = "subjects.json"
 # Drive API 接続
 # -----------------------------
 @st.cache_resource
-def get_drive_service():
-    credentials_json = os.environ.get("GOOGLE_CREDENTIALS")
-    if not credentials_json:
-        st.error("環境変数 GOOGLE_CREDENTIALS が設定されていません")
-        st.stop()
+def drive_find_file(filename):
+    service = get_drive_service()
     try:
-        creds_info = json.loads(credentials_json)
-    except json.JSONDecodeError:
-        st.error("GOOGLE_CREDENTIALS の JSON が不正です")
-        st.stop()
-    creds = service_account.Credentials.from_service_account_info(
-        creds_info,
-        scopes=["https://www.googleapis.com/auth/drive"]
-    )
-    service = build("drive", "v3", credentials=creds)
-    return service
+        results = service.files().list(
+            q=f"name='{filename}' and trashed=false",
+            spaces="drive",
+            fields="files(id, name)"
+        ).execute()
+    except Exception as e:
+        st.warning(f"Drive API error: {e}")
+        return None
+
+    if not results or "files" not in results:
+        return None
+
+    files = results["files"]
+    if not files:
+        return None
+
+    return files[0]["id"]
 
 service = get_drive_service()
 
@@ -355,4 +359,5 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
