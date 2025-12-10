@@ -324,6 +324,19 @@ with tabs[1]:
             # 行ごとの操作（ループ内ではフラグだけセット）
             for _, row in df.reset_index(drop=True).iterrows():
                 cols = st.columns([3,3,2,2,2])
+                
+                # 左側カラム: 宿題の情報表示
+                with cols[0]:
+                    st.markdown(f"**{row['subject']}**")
+                    st.write(row['content'])
+                    st.write(f"提出日: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
+                    st.write(f"追加: {pd.to_datetime(row['created_at']).strftime('%Y-%m-%d %H:%M')}")
+            
+                # 2列目: 提出方法
+                with cols[1]:
+                    st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
+            
+                # 3列目: ステータス変更
                 with cols[2]:
                     key_status = f"status_{int(row['id'])}"
                     if key_status not in st.session_state: st.session_state[key_status] = row["status"]
@@ -333,10 +346,12 @@ with tabs[1]:
                     if new_status != row["status"]:
                         st.session_state.update_status = {"id": row["id"], "status": new_status}
             
+                # 4列目: 完了ボタン
                 with cols[3]:
                     if st.button(f"完了にする_{int(row['id'])}", key=f"done_{int(row['id'])}"):
                         st.session_state.done_id = row["id"]
             
+                # 5列目: 削除ボタン
                 with cols[4]:
                     if st.button(f"削除_{int(row['id'])}", key=f"del_{int(row['id'])}"):
                         st.session_state.delete_id = row["id"]
@@ -386,5 +401,6 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
