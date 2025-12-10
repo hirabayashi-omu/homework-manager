@@ -94,24 +94,31 @@ with tabs[0]:
             with st.expander(f"{d}曜日"):
                 cols = st.columns(4)
                 values = st.session_state.timetable.get(d, [""]*4)
-                new_vals = []
+
                 for i, c in enumerate(cols):
-                    new_val = c.text_input(f"{d} {period_labels[i]}", value=values[i], key=f"tt_{d}_{i}")
-                    new_vals.append(new_val)
-                timetable_changes[d] = new_vals
+                    key = f"tt_{d}_{i}"
+
+                    # 初回のみ session_state にロードした値をセット
+                    if key not in st.session_state:
+                        st.session_state[key] = values[i]
+
+                    # UI のテキストボックス（value は session_state の key にする）
+                    st.text_input(
+                        f"{d} {period_labels[i]}",
+                        key=key,
+                    )
 
     with col2:
         st.markdown("#### 操作")
         if st.button("時間割を保存"):
-            st.session_state.timetable = timetable_changes
+            for d in days:
+                new_vals = []
+                for i in range(4):
+                    key = f"tt_{d}_{i}"
+                    new_vals.append(st.session_state[key])
+                st.session_state.timetable[d] = new_vals
+
             save_json(TIMETABLE_FILE, st.session_state.timetable)
-            # update subjects
-            subs = set(st.session_state.subjects)
-            for day_vals in st.session_state.timetable.values():
-                for s in day_vals:
-                    if s and s.strip():
-                        subs.add(s.strip())
-            st.session_state.subjects = sorted(list(subs))
             st.success("時間割を保存しました。")
         if st.button("時間割を初期化（空にする）"):
             st.session_state.timetable = {d: ["", "", "", ""] for d in days}
