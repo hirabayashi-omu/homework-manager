@@ -278,7 +278,7 @@ with tabs[1]:
                 st.session_state.subjects.append(use_subject)
                 st.session_state.subjects.sort()
                 drive_save_json(SUBJECT_FILE, st.session_state.subjects)
-
+        
             hw = {
                 "id": int(datetime.now().timestamp()*1000),
                 "subject": use_subject,
@@ -292,7 +292,8 @@ with tabs[1]:
             st.session_state.homework.append(hw)
             drive_save_json(HOMEWORK_FILE, st.session_state.homework)
             st.success("宿題を追加しました。")
-            st.experimental_rerun()  # 追加後に rerun
+            # st.experimental_rerun()  ← 削除
+            st.session_state.new_hw_added = True  # ← 追加したことをフラグで記録
 
     # 右: 一覧表示と操作
     with right:
