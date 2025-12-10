@@ -1,31 +1,29 @@
 # homework_manager.py
 # -*- coding: utf-8 -*-
 """
-時間割＆宿題管理アプリ（Streamlit）
-機能:
-- タブ切替（時間割入力 / 宿題管理）
-- 時間割: 月〜金 × 4ブロック(1/2限,3/4限,5/6限,7/8限) を入力・保存・読み込み・エクスポート
-- 宿題: 科目選択(時間割から自動取得または追加)、内容、提出日、ステータス(未着手/作業中/完了)、提出方法を登録
-- 宿題は追加・編集(ステータス変更)・削除可能
-- CSVダウンロード（宿題一覧）
-- 追加機能: 提出方法ラジオ, 締切3日以内の宿題をハイライト
-保存: 作業ディレクトリに JSON ファイルを作成して永続化します
+永続化バグ修正版: 時間割 & 宿題管理アプリ
+保存: 作業ディレクトリに JSON ファイルを作成して永続化（ローカル実行推奨）
 """
 
 import streamlit as st
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import pandas as pd
 import io
 
-# ファイル名
+# -------------------------
+# ファイル名（変更可）
+# -------------------------
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
+SUBJECT_FILE = "subjects.json"
 
 st.set_page_config(page_title="時間割＆宿題管理アプリ", layout="wide")
 
-# ---- ユーティリティ ----
+# -------------------------
+# JSONユーティリティ
+# -------------------------
 def load_json(path, default):
     if os.path.exists(path):
         try:
@@ -36,167 +34,217 @@ def load_json(path, default):
     return default
 
 def save_json(path, data):
+    # ensure directory exists (for future-proof)
+    d = os.path.dirname(path)
+    if d and not os.path.exists(d):
+        os.makedirs(d, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+# -------------------------
+# 起動時の初期化（session_state にロード）
+# -------------------------
 def init_session_state():
+    # timetable: dict { "月": [...], ... }
     if "timetable" not in st.session_state:
-        st.session_state.timetable = load_json(TIMETABLE_FILE, default={
-            "月": ["", "", "", ""],
-            "火": ["", "", "", ""],
-            "水": ["", "", "", ""],
-            "木": ["", "", "", ""],
-            "金": ["", "", "", ""],
-        })
+        tt_default = {"月":["","","",""], "火":["","","",""], "水":["","","",""], "木":["","","",""], "金":["","","",""]}
+        loaded_tt = load_json(TIMETABLE_FILE, tt_default)
+        # guard: if file corrupted, fallback to default
+        if not isinstance(loaded_tt, dict):
+            loaded_tt = tt_default
+        # ensure each day has 4 slots
+        for d in ["月","火","水","木","金"]:
+            v = loaded_tt.get(d, [""]*4)
+            if not isinstance(v, list) or len(v) != 4:
+                loaded_tt[d] = [""]*4
+        st.session_state.timetable = loaded_tt
+
+    # homework: list of dicts
     if "homework" not in st.session_state:
-        loaded = load_json(HOMEWORK_FILE, default=[])
-        # --- ここが追加の安全化パッチ ---
-        if not isinstance(loaded, list):
-            loaded = []
+        loaded_hw = load_json(HOMEWORK_FILE, [])
+        if not isinstance(loaded_hw, list):
+            loaded_hw = []
         else:
-            # list 内に文字列など不正データが混ざっていたら除外
-            loaded = [x for x in loaded if isinstance(x, dict)]
-        # -----------------------------------
-        st.session_state.homework = loaded
+            # keep only dict entries
+            loaded_hw = [x for x in loaded_hw if isinstance(x, dict)]
+        # Normalize keys (add missing)
+        for h in loaded_hw:
+            if "due" not in h or not h["due"]:
+                h["due"] = date.today().isoformat()
+            if "created_at" not in h and "created" in h:
+                h["created_at"] = h.pop("created")
+            if "created_at" not in h:
+                h["created_at"] = datetime.now().isoformat()
+        st.session_state.homework = loaded_hw
+
+    # subjects: list
     if "subjects" not in st.session_state:
-        # 科目一覧は時間割の値から自動生成（空文字は除外）
-        subs = set()
-        for day_vals in st.session_state.timetable.values():
-            for s in day_vals:
-                if s and s.strip():
-                    subs.add(s.strip())
-        # 代表的な科目候補も追加
-        default_candidates = ["数学", "物理", "化学", "英語", "日本史", "情報", "機械設計"]
-        for c in default_candidates:
-            subs.add(c)
-        st.session_state.subjects = sorted(list(subs))
+        loaded_subs = load_json(SUBJECT_FILE, None)
+        if isinstance(loaded_subs, list) and loaded_subs:
+            st.session_state.subjects = loaded_subs
+        else:
+            # generate from timetable + defaults
+            subs = set()
+            for vals in st.session_state.timetable.values():
+                for s in vals:
+                    if isinstance(s, str) and s.strip():
+                        subs.add(s.strip())
+            for c in ["数学","物理","化学","英語","日本史","情報","機械設計"]:
+                subs.add(c)
+            st.session_state.subjects = sorted(list(subs))
+            # save initial subjects
+            save_json(SUBJECT_FILE, st.session_state.subjects)
 
 init_session_state()
 
-# ---- UI ----
-st.title("時間割 & 宿題管理アプリ（Streamlit）")
-st.markdown("個人や仲間内で共有して使える簡易の宿題管理アプリです。")
+# -------------------------
+# 環境注意表示（Streamlit Cloud 等でローカルファイルが永続化されない場合の注意）
+# -------------------------
+def show_persistence_notice():
+    # heuristic: if running on Streamlit Cloud, files may not persist between deploys
+    # We'll always show a small info message explaining differences.
+    st.info(
+        "注意: このアプリはローカルに JSON ファイルを保存します。"
+        "もし Streamlit Cloud や一部の PaaS で動かしている場合、"
+        "その環境の仕様でファイルが永続化されないことがあります。\n\n"
+        "ローカルで実行する場合: `streamlit run homework_manager.py` を使ってください。\n"
+        "クラウドで永続化したい場合: GitHub / Google Drive / Supabase 等に保存する実装に変更してください。"
+    )
 
+show_persistence_notice()
+
+# -------------------------
+# UI
+# -------------------------
+st.title("時間割 & 宿題管理アプリ（永続化版）")
 tabs = st.tabs(["時間割入力", "宿題一覧"])
 
-# --------- タブ1: 時間割入力 ---------
+# ---- タブ: 時間割入力 ----
 with tabs[0]:
     st.header("時間割入力（保存するとローカルに保存されます）")
     col1, col2 = st.columns([3,1])
+    days = ["月","火","水","木","金"]
+    period_labels = ["1/2限","3/4限","5/6限","7/8限"]
+
+    # 左：入力グリッド
     with col1:
-        st.markdown("#### 曜日 × 時限（1/2限、3/4限、5/6限、7/8限）")
-        # 表形式で入力
-        days = ["月", "火", "水", "木", "金"]
-        period_labels = ["1/2限", "3/4限", "5/6限", "7/8限"]
-        # Build a simple grid
-        timetable_changes = {}
+        timetable_temp = {}
         for d in days:
             with st.expander(f"{d}曜日"):
                 cols = st.columns(4)
-                values = st.session_state.timetable.get(d, [""]*4)
-
+                # session keys: tt_{d}_{i}
                 for i, c in enumerate(cols):
                     key = f"tt_{d}_{i}"
-
-                    # 初回のみ session_state にロードした値をセット
+                    # initialize UI key with saved timetable value (only if absent)
                     if key not in st.session_state:
-                        st.session_state[key] = values[i]
+                        st.session_state[key] = st.session_state.timetable.get(d, [""]*4)[i]
+                    # show text input bound to session_state key
+                    st.text_input(f"{d} {period_labels[i]}", key=key)
 
-                    # UI のテキストボックス（value は session_state の key にする）
-                    st.text_input(
-                        f"{d} {period_labels[i]}",
-                        key=key,
-                    )
-
+    # 右：操作
     with col2:
-        st.markdown("#### 操作")
         if st.button("時間割を保存"):
+            # collect from keys and save to st.session_state.timetable
             for d in days:
-                new_vals = []
+                vals = []
                 for i in range(4):
                     key = f"tt_{d}_{i}"
-                    new_vals.append(st.session_state[key])
-                st.session_state.timetable[d] = new_vals
-
+                    vals.append(st.session_state.get(key, ""))
+                st.session_state.timetable[d] = vals
             save_json(TIMETABLE_FILE, st.session_state.timetable)
+            # update subjects file as well (collect non-empty subjects)
+            subs = set(st.session_state.subjects)
+            for vals in st.session_state.timetable.values():
+                for s in vals:
+                    if isinstance(s, str) and s.strip():
+                        subs.add(s.strip())
+            st.session_state.subjects = sorted(list(subs))
+            save_json(SUBJECT_FILE, st.session_state.subjects)
             st.success("時間割を保存しました。")
+
         if st.button("時間割を初期化（空にする）"):
-            st.session_state.timetable = {d: ["", "", "", ""] for d in days}
+            for d in days:
+                st.session_state.timetable[d] = [""]*4
+                # clear UI keys too
+                for i in range(4):
+                    key = f"tt_{d}_{i}"
+                    st.session_state[key] = ""
             save_json(TIMETABLE_FILE, st.session_state.timetable)
-            st.session_state.subjects = []
-            st.success("時間割を空にしました。")
-        st.caption("※ ファイルはアプリと同じフォルダに保存されます。")
+            save_json(SUBJECT_FILE, st.session_state.subjects)
+            st.success("時間割を初期化しました。")
 
+    # プレビュー
     st.markdown("---")
-    st.markdown("#### 現在の時間割プレビュー")
-    df_preview = pd.DataFrame(
-        {d: st.session_state.timetable.get(d, [""]*4) for d in days},
-        index=period_labels
-    )
-    st.dataframe(df_preview)
+    df_preview = pd.DataFrame({d: st.session_state.timetable.get(d, [""]*4) for d in days}, index=period_labels)
+    st.dataframe(df_preview, use_container_width=True)
 
-    # Export/Import
+    # Export / Import
     st.markdown("---")
-    st.markdown("#### エクスポート / インポート")
-    if st.button("時間割をJSONでダウンロード"):
-        json_bytes = json.dumps(st.session_state.timetable, ensure_ascii=False, indent=2).encode("utf-8")
-        st.download_button("ダウンロード（JSON）", data=json_bytes, file_name="timetable.json", mime="application/json")
+    st.subheader("時間割のエクスポート / インポート")
+    if st.download_button("時間割をJSONでダウンロード", json.dumps(st.session_state.timetable, ensure_ascii=False, indent=2).encode("utf-8"), file_name="timetable.json", mime="application/json"):
+        pass
+
     uploaded_tt = st.file_uploader("時間割JSONをインポート", type=["json"])
     if uploaded_tt is not None:
         try:
             data = json.load(uploaded_tt)
-            # simple validation
             if isinstance(data, dict):
+                # normalize to 4 slots
+                for d in days:
+                    v = data.get(d, [""]*4)
+                    if not isinstance(v, list) or len(v) != 4:
+                        data[d] = [""]*4
                 st.session_state.timetable = data
                 save_json(TIMETABLE_FILE, st.session_state.timetable)
-                # update subjects
-                subs = set()
-                for day_vals in st.session_state.timetable.values():
-                    for s in day_vals:
-                        if s and s.strip():
+                # rebuild subject list and save
+                subs = set(st.session_state.subjects)
+                for vals in st.session_state.timetable.values():
+                    for s in vals:
+                        if isinstance(s, str) and s.strip():
                             subs.add(s.strip())
                 st.session_state.subjects = sorted(list(subs))
+                save_json(SUBJECT_FILE, st.session_state.subjects)
                 st.success("インポート完了しました。")
+                st.experimental_rerun()
             else:
-                st.error("形式が正しくありません。辞書型のJSONをアップロードしてください。")
+                st.error("辞書型の JSON をアップロードしてください。")
         except Exception as e:
-            st.error(f"JSONの読み込みに失敗しました: {e}")
+            st.error(f"読み込みエラー: {e}")
 
-# --------- タブ2: 宿題一覧 ---------
+# ---- タブ: 宿題一覧 ----
 with tabs[1]:
-    st.header("宿題ページ")
-    st.markdown("宿題の追加・編集・削除、CSV出力ができます。")
-
-    # 左: 入力フォーム、右: 一覧
+    st.header("宿題ページ（追加・編集・削除・CSV出力）")
     left, right = st.columns([1,2])
 
+    # 左: 入力フォーム
     with left:
         st.subheader("宿題の登録")
-        # 科目の選択肢に時間割から抽出した科目を含める
         subject = st.selectbox("科目", options=st.session_state.subjects, index=0 if st.session_state.subjects else None)
-        # 入力して科目を追加することも可能
-        new_subject = st.text_input("（新しい科目を追加する場合はこちらに入力）", value="")
-        if new_subject and st.button("科目を追加"):
-            if new_subject.strip() not in st.session_state.subjects:
-                st.session_state.subjects.append(new_subject.strip())
-                st.session_state.subjects.sort()
-                st.success(f"科目「{new_subject.strip()}」を追加しました。")
+        new_subject = st.text_input("（新しい科目を追加する場合）", value="")
+        if st.button("科目を追加"):
+            ns = new_subject.strip()
+            if ns:
+                if ns not in st.session_state.subjects:
+                    st.session_state.subjects.append(ns)
+                    st.session_state.subjects.sort()
+                    save_json(SUBJECT_FILE, st.session_state.subjects)
+                    st.success(f"科目「{ns}」を追加しました。")
+                else:
+                    st.info("その科目は既に存在します。")
             else:
-                st.info("その科目は既に存在します。")
+                st.warning("科目名を入力してください。")
 
-        content = st.text_area("宿題内容", placeholder="例: レポート 3ページ分、問題集 p10-15 など")
+        content = st.text_area("宿題内容", placeholder="例: レポート 3ページ、問題集 p10-15")
         due = st.date_input("提出日", value=date.today())
-        status = st.selectbox("ステータス", options=["未着手", "作業中", "完了"])
-        # オリジナル機能: 提出方法ラジオ
+        status = st.selectbox("ステータス", options=["未着手","作業中","完了"], index=0)
         st.markdown("提出方法")
-        submit_method = st.radio("", options=["Teams", "Google Classroom", "手渡し", "その他"], index=0)
+        submit_method = st.radio("", options=["Teams","Google Classroom","手渡し","その他"], index=0)
+        submit_method_detail = ""
         if submit_method == "その他":
             submit_method_detail = st.text_input("その他（具体）", value="")
-        else:
-            submit_method_detail = ""
 
         if st.button("宿題を追加"):
-            if not (subject or new_subject):
+            if not (subject or new_subject.strip()):
                 st.error("科目を選択するか、新しい科目を入力してください。")
             elif not content.strip():
                 st.error("宿題内容を入力してください。")
@@ -205,8 +253,10 @@ with tabs[1]:
                 if use_subject not in st.session_state.subjects:
                     st.session_state.subjects.append(use_subject)
                     st.session_state.subjects.sort()
+                    save_json(SUBJECT_FILE, st.session_state.subjects)
+
                 hw = {
-                    "id": int(datetime.now().timestamp()*1000),
+                    "id": int(datetime.now().timestamp() * 1000),
                     "subject": use_subject,
                     "content": content.strip(),
                     "due": due.isoformat(),
@@ -218,133 +268,99 @@ with tabs[1]:
                 st.session_state.homework.append(hw)
                 save_json(HOMEWORK_FILE, st.session_state.homework)
                 st.success("宿題を追加しました。")
-                # clear inputs (re-run will show cleared)
-                st.rerun()
 
-        st.markdown("#### クイック操作")
-        if st.button("未着手のみ表示（右側フィルタをセット）"):
-            st.session_state.filter_status = "未着手"
-            st.rerun()
-        if st.button("締切3日以内の宿題をハイライト"):
-            st.session_state.filter_status = "近い締切"
-
+    # 右: 一覧表示と操作
     with right:
         st.subheader("宿題一覧")
-        # フィルタ、ソート
-        filter_col, sort_col, search_col = st.columns([1,1,1])
-        filter_status = filter_col.selectbox("ステータスで絞り込む", options=["全て", "未着手", "作業中", "完了"], index=0)
-        sort_option = sort_col.selectbox("並び替え", options=["提出日（昇順）", "提出日（降順）", "作成日（新しい順）"], index=0)
-        keyword = search_col.text_input("キーワード検索（科目・内容）", value="")
-
         hw_list = st.session_state.homework.copy()
+        # clean
+        hw_list = [h for h in hw_list if isinstance(h, dict)]
+        # ensure keys
+        for h in hw_list:
+            if "due" not in h or not h["due"]:
+                h["due"] = date.today().isoformat()
+            if "created_at" not in h:
+                h["created_at"] = datetime.now().isoformat()
 
-        # --- 安全化パッチ：list内の「文字列データ」や「不正データ」を除外 ---
-        cleaned_hw_list = []
-        for hw in hw_list:
-            if isinstance(hw, dict):        # dict のものだけ採用
-                cleaned_hw_list.append(hw)
-        # 採用したものだけで置き換える
-        hw_list = cleaned_hw_list
-
-        # --- 欠損キーを補完 ---
-        for hw in hw_list:
-            if "due" not in hw or not hw["due"]:
-                hw["due"] = date.today().isoformat()
-
-            if "created_at" not in hw or not hw["created_at"]:
-                hw["created_at"] = datetime.now().isoformat()
-
-        df = pd.DataFrame(hw_list)
-
-
-
-        df = pd.DataFrame(hw_list)
-        if df.empty:
-            st.info("登録された宿題はありません。左から追加できます。")
+        if not hw_list:
+            st.info("登録された宿題はありません。")
         else:
-            # parse dates
+            df = pd.DataFrame(hw_list)
             df["due_dt"] = pd.to_datetime(df["due"]).dt.date
             df["created_at_dt"] = pd.to_datetime(df["created_at"])
-            # filter by status
+            # filters
+            filter_status = st.selectbox("ステータスで絞り込む", options=["全て","未着手","作業中","完了"], index=0)
+            keyword = st.text_input("キーワード検索（科目・内容）", value="")
+
             if filter_status != "全て":
                 df = df[df["status"] == filter_status]
-            # keyword
             if keyword.strip():
                 df = df[df["subject"].str.contains(keyword, case=False, na=False) | df["content"].str.contains(keyword, case=False, na=False)]
-            # sort
-            if sort_option == "提出日（昇順）":
-                df = df.sort_values("due_dt", ascending=True)
-            elif sort_option == "提出日（降順）":
-                df = df.sort_values("due_dt", ascending=False)
-            else:
-                df = df.sort_values("created_at_dt", ascending=False)
 
-            # Highlight close due dates
+            # sort and days left
+            df = df.sort_values(["due_dt","created_at_dt"], ascending=[True, False])
             today = date.today()
             df["days_left"] = (df["due_dt"] - pd.to_datetime(today).date()).apply(lambda x: x.days)
-            # display summary
+
             st.markdown(f"登録件数: **{len(df)} 件**")
-            # show upcoming (締切3日以内)
             upcoming = df[df["days_left"] <= 3]
             if not upcoming.empty:
                 st.warning(f"締切が3日以内の宿題が **{len(upcoming)} 件** あります。")
-                st.table(upcoming[["subject", "content", "due_dt", "status", "submit_method"]].head(10))
+                st.table(upcoming[["subject","content","due_dt","status","submit_method"]])
 
-            # Display table with actions
-            # We will allow status変更と削除を行うUIを各行に提供
-            for idx, row in df.reset_index(drop=True).iterrows():
+            # show interactive list (each row has actions)
+            for _idx, row in df.reset_index(drop=True).iterrows():
                 st.markdown("---")
                 cols = st.columns([3,3,2,2,2])
                 with cols[0]:
                     st.markdown(f"**{row['subject']}** — {row['content']}")
                     st.write(f"提出: {row['due_dt'].isoformat()} （残り {row['days_left']} 日）")
                 with cols[1]:
-                    st.write(f"提出方法: {row.get('submit_method', '')} {row.get('submit_method_detail','')}")
+                    st.write(f"提出方法: {row.get('submit_method','')} {row.get('submit_method_detail','')}")
                     st.write(f"追加: {pd.to_datetime(row['created_at']).strftime('%Y-%m-%d %H:%M')}")
-                # status変更
                 with cols[2]:
-                    new_status = st.selectbox(f"ステータス変更_{row['id']}", options=["未着手", "作業中", "完了"], index=["未着手","作業中","完了"].index(row["status"]))
+                    # status selector
+                    key_status = f"status_{int(row['id'])}"
+                    if key_status not in st.session_state:
+                        st.session_state[key_status] = row["status"]
+                    new_status = st.selectbox("", options=["未着手","作業中","完了"], index=["未着手","作業中","完了"].index(st.session_state[key_status]), key=key_status)
                     if new_status != row["status"]:
-                        if st.button(f"更新_{row['id']}", key=f"upd_{row['id']}"):
-                            # update in session_state.homework
-                            for h in st.session_state.homework:
-                                if h["id"] == row["id"]:
-                                    h["status"] = new_status
-                                    save_json(HOMEWORK_FILE, st.session_state.homework)
-                                    st.success("ステータスを更新しました。")
-                                    st.rerun()
-                # Mark done quick button
-                with cols[3]:
-                    if st.button(f"完了にする_{row['id']}", key=f"done_{row['id']}"):
+                        # apply change to original list
                         for h in st.session_state.homework:
-                            if h["id"] == row["id"]:
+                            if h.get("id") == row["id"]:
+                                h["status"] = new_status
+                                save_json(HOMEWORK_FILE, st.session_state.homework)
+                                st.success("ステータスを更新しました。")
+                                break
+                with cols[3]:
+                    if st.button(f"完了にする_{int(row['id'])}", key=f"done_{int(row['id'])}"):
+                        for h in st.session_state.homework:
+                            if h.get("id") == row["id"]:
                                 h["status"] = "完了"
                                 save_json(HOMEWORK_FILE, st.session_state.homework)
                                 st.success("完了にしました。")
-                                st.rerun()
-                # delete
+                                break
                 with cols[4]:
-                    if st.button(f"削除_{row['id']}", key=f"del_{row['id']}"):
-                        st.session_state.homework = [h for h in st.session_state.homework if h["id"] != row["id"]]
+                    if st.button(f"削除_{int(row['id'])}", key=f"del_{int(row['id'])}"):
+                        st.session_state.homework = [h for h in st.session_state.homework if h.get("id") != row["id"]]
                         save_json(HOMEWORK_FILE, st.session_state.homework)
                         st.success("削除しました。")
-                        st.rerun()
+                        # We don't rerun automatically; user can refresh list via action
 
-            # CSV ダウンロード
+            # CSV ダウンロード（2形式）
             st.markdown("---")
             st.markdown("### エクスポート")
-            export_df = df.drop(columns=["due_dt", "created_at_dt", "days_left"], errors="ignore")
-            # ensure string types for JSON-serializable export
+            export_df = df.drop(columns=["due_dt","created_at_dt","days_left"], errors="ignore").copy()
             export_df = export_df.astype(str)
-            csv_buf = io.StringIO()
-            export_df.to_csv(csv_buf, index=False)
-            # Excelで文字化けしないよう Shift_JIS でエンコード
-            st.download_button(
-                "宿題一覧をCSVでダウンロード",
-                data=csv_buf.getvalue().encode("cp932"),  # ← 修正ポイント
-                file_name="homework_list.csv",
-                mime="text/csv"
-            )
-# ---- フッター ----
+
+            # UTF-8 BOM (utf-8-sig) - modern Excel & mac friendly
+            csv_utf8 = export_df.to_csv(index=False, encoding="utf-8-sig")
+            st.download_button("CSV (UTF-8 BOM)", data=csv_utf8, file_name="homework_utf8bom.csv", mime="text/csv")
+
+            # Shift_JIS (cp932) - Windows Excel 互換
+            csv_cp932 = export_df.to_csv(index=False).encode("cp932", errors="replace")
+            st.download_button("CSV (Shift_JIS / Excel)", data=csv_cp932, file_name="homework_shiftjis.csv", mime="text/csv")
+
+# フッター
 st.markdown("---")
-st.caption("※ このアプリはローカルに JSON を保存します。複数人で共有する場合は、共有場所にこのファイルを置くか、Streamlit Cloud等へデプロイしてURLを共有してください（本課題ではデプロイ不要）。")
+st.caption("※ ローカルで実行することを推奨します。クラウドで動かす場合は永続化方法を別途用意してください。")
