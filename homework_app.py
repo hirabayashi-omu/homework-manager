@@ -256,7 +256,7 @@ with right:
             st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
             
             # コンパクト表示: テーブル＋操作ボタン
-            for idx, row in df_recent.reset_index(drop=True).iterrows():  # df -> df_recent
+            for idx, row in df_recent.reset_index(drop=True).iterrows():
                 cols = st.columns([3, 1, 1, 1])
                 cols[0].markdown(
                     f"**{row['subject']}** - {row['content']}<br>"
@@ -281,6 +281,7 @@ with right:
                 if cols[3].button("削除", key=f"del_{row['id']}"):
                     st.session_state.delete_id = row["id"]
         else:
+            st.info("直近3日以内の宿題はありません。")
 
 
 # ---- ループ外でまとめて処理 ----
@@ -321,6 +322,7 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
