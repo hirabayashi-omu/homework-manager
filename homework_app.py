@@ -40,19 +40,24 @@ def drive_find_file(filename):
     return files[0]["id"] if files else None
 
 def drive_save_json(filename, data):
-    service = get_drive_service()
+    """
+    JSON データを Google Drive に保存（既存なら update、新規なら create）。
+    Shared Drive 対応。エラーは表示しない。
+    """
     try:
         file_id = drive_find_file(filename)
         content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
         media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
 
         if file_id:
+            # 既存ファイルを更新
             service.files().update(
                 fileId=file_id,
                 media_body=media,
                 supportsAllDrives=True
             ).execute()
         else:
+            # 新規作成
             body = {"name": filename, "parents": [FOLDER_ID]}
             service.files().create(
                 body=body,
@@ -60,8 +65,9 @@ def drive_save_json(filename, data):
                 supportsAllDrives=True
             ).execute()
     except Exception as e:
-        st.error(f"Drive 保存エラー: {e}")
-
+        # ここで st.error を出さずに無視する
+        print(f"[Drive] 保存時の警告: {e}")  # デバッグ用には残せる
+        
 def drive_load_json(filename, default):
     service = get_drive_service()
     file_id = drive_find_file(filename)
@@ -340,6 +346,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
