@@ -15,21 +15,14 @@ HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
 
 # -----------------------------
-# Drive API 接続
+# Google Drive 保存/読み込み（共有ドライブ対応）
 # -----------------------------
-@st.cache_resource
-def get_drive_service():
-    creds_info = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
-    creds = service_account.Credentials.from_service_account_info(
-        creds_info, scopes=["https://www.googleapis.com/auth/drive"]
-    )
-    service = build("drive", "v3", credentials=creds)
-    return service
 
-def drive_find_file(filename):
+def drive_find_file(filename, folder_id=FOLDER_ID):
     service = get_drive_service()
+    query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
     results = service.files().list(
-        q=f"name='{filename}' and trashed=false",
+        q=query,
         spaces="drive",
         fields="files(id, name)",
         supportsAllDrives=True,
@@ -38,27 +31,34 @@ def drive_find_file(filename):
     files = results.get("files", [])
     return files[0]["id"] if files else None
 
-def drive_save_json(filename, data):
+def drive_save_json(filename, data, folder_id=FOLDER_ID):
     try:
-        file_id = drive_find_file(filename)
+        file_id = drive_find_file(filename, folder_id)
         content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
         media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
         service = get_drive_service()
         if file_id:
             service.files().update(
-                fileId=file_id, media_body=media, supportsAllDrives=True
+                fileId=file_id,
+                media_body=media,
+                supportsAllDrives=True
             ).execute()
         else:
-            body = {"name": filename, "parents": [FOLDER_ID]}
+            body = {
+                "name": filename,
+                "parents": [folder_id]
+            }
             service.files().create(
-                body=body, media_body=media, supportsAllDrives=True
+                body=body,
+                media_body=media,
+                supportsAllDrives=True
             ).execute()
     except Exception as e:
         st.warning(f"[Drive] 保存時の警告: {e}")
 
-def drive_load_json(filename, default):
+def drive_load_json(filename, default, folder_id=FOLDER_ID):
     service = get_drive_service()
-    file_id = drive_find_file(filename)
+    file_id = drive_find_file(filename, folder_id)
     if not file_id:
         return default
     request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
@@ -72,6 +72,7 @@ def drive_load_json(filename, default):
         return json.loads(fh.read().decode("utf-8"))
     except Exception:
         return default
+
 
 # -----------------------------
 # session_state 初期化
@@ -294,6 +295,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
