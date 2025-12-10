@@ -1,6 +1,5 @@
-
 import streamlit as st
-import io, json
+import os, json, io
 from datetime import date, datetime
 import pandas as pd
 from google.oauth2 import service_account
@@ -10,7 +9,7 @@ from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 # -----------------------------
 # Google Drive 設定
 # -----------------------------
-FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"  # 共有ドライブのフォルダID
+FOLDER_ID = "SHARED_DRIVE_FOLDER_ID"  # Shared Drive 内のフォルダIDに変更
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
@@ -28,41 +27,20 @@ def get_drive_service():
     service = build("drive", "v3", credentials=creds)
     return service
 
-service = get_drive_service()
-
 def drive_find_file(filename):
-    try:
-        results = service.files().list(
-            q=f"name='{filename}' and trashed=false",
-            spaces="drive",
-            fields="files(id, name)",
-            supportsAllDrives=True,
-            includeItemsFromAllDrives=True
-        ).execute()
-    except Exception as e:
-        st.error(f"Drive API error: {e}")
-        return None
-
+    service = get_drive_service()
+    results = service.files().list(
+        q=f"name='{filename}' and trashed=false",
+        spaces="drive",
+        fields="files(id, name)",
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True
+    ).execute()
     files = results.get("files", [])
     return files[0]["id"] if files else None
 
-def drive_load_json(filename, default):
-    file_id = drive_find_file(filename)
-    if not file_id:
-        return default
-    request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        status, done = downloader.next_chunk()
-    try:
-        fh.seek(0)
-        return json.loads(fh.read().decode("utf-8"))
-    except Exception:
-        return default
-
 def drive_save_json(filename, data):
+    service = get_drive_service()
     try:
         file_id = drive_find_file(filename)
         content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
@@ -83,6 +61,23 @@ def drive_save_json(filename, data):
             ).execute()
     except Exception as e:
         st.error(f"Drive 保存エラー: {e}")
+
+def drive_load_json(filename, default):
+    service = get_drive_service()
+    file_id = drive_find_file(filename)
+    if not file_id:
+        return default
+    request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        status, done = downloader.next_chunk()
+    fh.seek(0)
+    try:
+        return json.loads(fh.read().decode("utf-8"))
+    except Exception:
+        return default
 
 # -----------------------------
 # Streamlit 設定
@@ -345,6 +340,7 @@ with tabs[1]:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
