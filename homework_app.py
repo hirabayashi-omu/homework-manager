@@ -9,7 +9,7 @@ from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 # -----------------------------
 # Google Drive 設定
 # -----------------------------
-FOLDER_ID = "1O7F8ZWvRJCjRVZZ5iyrcXmFQGx2VEYjG"
+FOLDER_ID = "共有ドライブのフォルダID"  # サービスアカウントがアクセスできる共有ドライブ
 TIMETABLE_FILE = "timetable.json"
 HOMEWORK_FILE = "homework.json"
 SUBJECT_FILE = "subjects.json"
@@ -24,7 +24,8 @@ def get_drive_service():
         creds_info,
         scopes=["https://www.googleapis.com/auth/drive"]
     )
-    return build("drive", "v3", credentials=creds)
+    service = build("drive", "v3", credentials=creds)
+    return service
 
 def drive_find_file(filename):
     service = get_drive_service()
@@ -44,6 +45,7 @@ def drive_save_json(filename, data):
         content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
         media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
         service = get_drive_service()
+
         if file_id:
             service.files().update(
                 fileId=file_id,
@@ -58,7 +60,7 @@ def drive_save_json(filename, data):
                 supportsAllDrives=True
             ).execute()
     except Exception as e:
-        st.warning(f"[Drive] 保存時の警告: {e}")
+        print(f"[Drive] 保存時の警告: {e}")  # ここでは例外をキャッチして警告表示
 
 def drive_load_json(filename, default):
     service = get_drive_service()
@@ -81,16 +83,14 @@ def drive_load_json(filename, default):
 # session_state 初期化
 # -----------------------------
 def init_session_state():
-    # 時間割
     if "timetable" not in st.session_state:
-        default_tt = {d:[""]*4 for d in ["月","火","水","木","金"]}
+        default_tt = {"月":["","","",""], "火":["","","",""], "水":["","","",""], "木":["","","",""], "金":["","","",""]}
         loaded_tt = drive_load_json(TIMETABLE_FILE, default_tt)
         for d in loaded_tt:
             if not isinstance(loaded_tt[d], list) or len(loaded_tt[d]) != 4:
                 loaded_tt[d] = [""]*4
         st.session_state.timetable = loaded_tt
 
-    # 宿題
     if "homework" not in st.session_state:
         loaded_hw = drive_load_json(HOMEWORK_FILE, [])
         if isinstance(loaded_hw, list):
@@ -103,7 +103,6 @@ def init_session_state():
         else:
             st.session_state.homework = []
 
-    # 科目リスト
     if "subjects" not in st.session_state:
         loaded_subs = drive_load_json(SUBJECT_FILE, [])
         if isinstance(loaded_subs, list) and loaded_subs:
@@ -119,10 +118,9 @@ def init_session_state():
             st.session_state.subjects = sorted(list(subs))
             drive_save_json(SUBJECT_FILE, st.session_state.subjects)
 
-    # フラグ類
-    for flag in ["new_hw_added","delete_id","done_id","update_status"]:
+    for flag in ["new_hw_added", "delete_id", "done_id", "update_status"]:
         if flag not in st.session_state:
-            st.session_state[flag] = False if flag=="new_hw_added" else None
+            st.session_state[flag] = False if "new_hw_added" in flag else None
 
 init_session_state()
 
@@ -131,33 +129,32 @@ init_session_state()
 # -----------------------------
 st.set_page_config(page_title="共有ドライブ版：時間割＆宿題管理", layout="wide")
 st.title("個人管理/クラス共有：時間割 & 宿題管理アプリ")
-tabs = st.tabs(["📝 時間割入力","📚 宿題一覧"])
+tabs = st.tabs(["📝 時間割入力", "📚 宿題一覧"])
 
-# =============================
+# -----------------------------
 # タブ1: 時間割入力
-# =============================
+# -----------------------------
 with tabs[0]:
     st.markdown("<h1 style='color:#1f77b4; font-size:36px;'>📝 時間割入力</h1>", unsafe_allow_html=True)
     days = ["月","火","水","木","金"]
     period_labels = ["1/2限","3/4限","5/6限","7/8限"]
-
     col1, col2 = st.columns([3,1])
+
     with col1:
         for d in days:
             with st.expander(f"{d}曜日"):
                 cols = st.columns(4)
                 for i, c in enumerate(cols):
                     key = f"tt_{d}_{i}"
-                    if key not in st.session_state:
-                        st.session_state[key] = st.session_state.timetable[d][i]
-                    st.text_input(period_labels[i], key=key)  # ← 返り値を再代入しない
+                    # session_state に初期値がなければセット
+                    st.text_input(period_labels[i], value=st.session_state.timetable[d][i], key=key)
 
     with col2:
         if st.button("時間割を保存"):
             for d in days:
                 st.session_state.timetable[d] = [st.session_state[f"tt_{d}_{i}"] for i in range(4)]
             drive_save_json(TIMETABLE_FILE, st.session_state.timetable)
-
+            # 科目更新
             subs = set(st.session_state.subjects)
             for vals in st.session_state.timetable.values():
                 for s in vals:
@@ -166,25 +163,11 @@ with tabs[0]:
             st.session_state.subjects = sorted(list(subs))
             drive_save_json(SUBJECT_FILE, st.session_state.subjects)
             st.success("時間割を Google Drive に保存しました！")
+            st.info("変更を反映するにはページを再読み込みしてください。")
 
-    st.markdown("---")
-    st.markdown("### プレビュー")
-    df_preview = pd.DataFrame({d: st.session_state.timetable[d] for d in days}, index=period_labels)
-    st.dataframe(df_preview, use_container_width=True)
-
-    uploaded_file = st.file_uploader("ここに JSON ファイルをドラッグ＆ドロップ", type=["json"])
-    if uploaded_file:
-        try:
-            loaded_tt = json.load(uploaded_file)
-            st.session_state.timetable = loaded_tt
-            st.success("時間割を読み込みました！")
-            st.experimental_rerun()
-        except Exception as e:
-            st.error(f"JSON 読み込みエラー: {e}")
-
-# =============================
+# -----------------------------
 # タブ2: 宿題管理
-# =============================
+# -----------------------------
 with tabs[1]:
     st.markdown("<h1 style='color:#ff7f0e; font-size:36px;'>📚 宿題管理</h1>", unsafe_allow_html=True)
     left, right = st.columns([1,2])
@@ -192,21 +175,6 @@ with tabs[1]:
     # ---- 左: 登録フォーム ----
     with left:
         st.subheader("宿題の登録")
-        if "input_subject" not in st.session_state:
-            st.session_state.input_subject = ""
-        if "input_new_subject" not in st.session_state:
-            st.session_state.input_new_subject = ""
-        if "input_content" not in st.session_state:
-            st.session_state.input_content = ""
-        if "input_due" not in st.session_state:
-            st.session_state.input_due = date.today()
-        if "input_status" not in st.session_state:
-            st.session_state.input_status = "未着手"
-        if "input_submit_method" not in st.session_state:
-            st.session_state.input_submit_method = "Teams"
-        if "input_submit_method_detail" not in st.session_state:
-            st.session_state.input_submit_method_detail = ""
-
         subject = st.selectbox("科目", options=st.session_state.subjects, index=0 if st.session_state.subjects else None)
         new_subject = st.text_input("（新しい科目を追加する場合）")
         content = st.text_area("宿題内容", height=200)
@@ -223,11 +191,10 @@ with tabs[1]:
                 st.session_state.subjects.sort()
                 drive_save_json(SUBJECT_FILE, st.session_state.subjects)
 
-            content_text = content.strip() if content.strip() else "（内容未記入）"
             hw = {
                 "id": int(datetime.now().timestamp()*1000),
                 "subject": use_subject,
-                "content": content_text,
+                "content": content.strip() if content.strip() else "（内容未記入）",
                 "due": due.isoformat(),
                 "status": status,
                 "submit_method": submit_method,
@@ -237,40 +204,33 @@ with tabs[1]:
             st.session_state.homework.append(hw)
             drive_save_json(HOMEWORK_FILE, st.session_state.homework)
             st.success("宿題を追加しました。")
-            st.session_state.new_hw_added = True
+            st.info("変更を反映するにはページを再読み込みしてください。")
 
-    # ---- 右: 一覧表示 ----
-    with right:
-        hw_list = [h for h in st.session_state.homework if isinstance(h, dict)]
-        if hw_list:
-            df = pd.DataFrame(hw_list).drop_duplicates(subset='id')
-            df["due_dt"] = pd.to_datetime(df["due"]).dt.date
-            df["created_at_dt"] = pd.to_datetime(df["created_at"])
-            today_dt = date.today()
-            df["days_left"] = (df["due_dt"] - today_dt).apply(lambda x: x.days)
-            df = df.sort_values(["due_dt","created_at_dt"], ascending=[True, False])
+# ---- 右: 宿題一覧表示 ----
+with right:
+    hw_list = [h for h in st.session_state.homework if isinstance(h, dict)]
+    if hw_list:
+        df = pd.DataFrame(hw_list).drop_duplicates(subset='id')
+        df["due_dt"] = pd.to_datetime(df["due"]).dt.date
+        df["created_at_dt"] = pd.to_datetime(df["created_at"])
+        today_dt = date.today()
+        df["days_left"] = (df["due_dt"] - today_dt).apply(lambda x: x.days)
+        df = df.sort_values(["due_dt","created_at_dt"], ascending=[True, False])
 
-            # フィルター
-            filter_status = st.selectbox("ステータスで絞り込む", ["全て","未着手","作業中","完了"], index=0)
-            keyword = st.text_input("キーワード検索（科目・内容）", value="")
-            if filter_status != "全て":
-                df = df[df["status"] == filter_status]
-            if keyword.strip():
-                df = df[df["subject"].str.contains(keyword, case=False, na=False) |
-                        df["content"].str.contains(keyword, case=False, na=False)]
+        filter_status = st.selectbox("ステータスで絞り込む", ["全て","未着手","作業中","完了"], index=0)
+        keyword = st.text_input("キーワード検索（科目・内容）", value="")
 
-            # 直近3日以内ハイライト
-            df_recent = df[df["days_left"] <= 3].copy()
-            if not df_recent.empty:
-                st.markdown(f"登録件数: **{len(df_recent)} 件**")
-                def highlight_due(row):
-                    return ['background-color: red; color: white;' if row['days_left'] <= 3 else '' for _ in row]
-                display_df = df_recent[["subject","content","due_dt","status","submit_method","days_left"]].copy()
-                styled = display_df.style.apply(highlight_due, axis=1)
-                st.dataframe(styled.data.drop(columns=['days_left']), use_container_width=True)
-                st.warning(f"締切が3日以内の宿題が **{len(df_recent)} 件** あります。")
-            else:
-                st.info("直近の宿題はありません。")
+        if filter_status != "全て":
+            df = df[df["status"] == filter_status]
+        if keyword.strip():
+            df = df[df["subject"].str.contains(keyword, case=False, na=False) |
+                    df["content"].str.contains(keyword, case=False, na=False)]
+
+        if not df.empty:
+            st.dataframe(df[["subject","content","due_dt","status","submit_method"]], use_container_width=True)
+        else:
+            st.info("表示できる宿題はありません。")
+
 
             # 操作ボタン
             for idx, row in df.reset_index(drop=True).iterrows():
@@ -332,3 +292,4 @@ if rerun_needed:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
