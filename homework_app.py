@@ -46,14 +46,13 @@ def drive_save_json(filename, data, folder_id=FOLDER_ID):
         media = MediaIoBaseUpload(io.BytesIO(content), mimetype="application/json")
         service = get_drive_service()
         if file_id:
-            # update する前に file_id が存在するかチェック
             service.files().update(
                 fileId=file_id,
                 media_body=media,
                 supportsAllDrives=True
             ).execute()
         else:
-            # ファイルがない場合は新規作成
+            # ファイルが存在しなければ新規作成
             body = {"name": filename, "parents": [folder_id]}
             service.files().create(
                 body=body,
@@ -62,6 +61,7 @@ def drive_save_json(filename, data, folder_id=FOLDER_ID):
             ).execute()
     except Exception as e:
         st.warning(f"[Drive] 保存時の警告: {e}")
+
 
 def drive_load_json(filename, default, folder_id=FOLDER_ID):
     service = get_drive_service()
@@ -283,6 +283,7 @@ with right:
 
 st.markdown("---")
 st.caption("※ Google Drive API による完全クラウド永続化版アプリです")
+
 
 
 
